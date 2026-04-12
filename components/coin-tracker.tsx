@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { fetchCoinsFromAPI, type CoinData } from '@/lib/services/coin-service'
 import { ApiSettings } from '@/components/api-settings'
+import { CoinChartModal } from '@/components/coin-chart-modal'
 
 // Helper function to get vol/mc ratio color intensity
 function getVolMcRatioColor(ratio: number): string {
@@ -803,7 +804,7 @@ export function CoinTracker() {
   )
 }
 
-function CoinRow({ coin, index }: { coin: Coin; index: number }) {
+function CoinRow({ coin, index, onCoinClick }: { coin: Coin; index: number; onCoinClick: (coin: Coin) => void }) {
   const formatPercent = (value: number | undefined) => {
     if (value === undefined || value === null)
       return <span className="text-muted-foreground text-xs sm:text-sm">N/A</span>
@@ -852,10 +853,13 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
               />
             ) : null}
           </div>
-          <div className="min-w-0">
-            <p className="font-medium text-foreground text-sm sm:text-base truncate">{coin.name}</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">{coin.symbol}</p>
-          </div>
+          <button
+            onClick={() => onCoinClick(coin)}
+            className="min-w-0 text-left hover:opacity-80 transition-opacity group"
+          >
+            <p className="font-medium text-foreground text-sm sm:text-base truncate group-hover:text-primary transition-colors">{coin.name}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase group-hover:text-primary/70 transition-colors">{coin.symbol}</p>
+          </button>
         </div>
       </TableCell>
       <TableCell className="text-right font-semibold text-foreground text-xs sm:text-sm whitespace-nowrap">
