@@ -73,7 +73,7 @@ export function ApiSettings({ onApiKeyChange }: ApiSettingsProps) {
 
           <div className="space-y-4 py-4">
             <FieldGroup>
-              <FieldLabel htmlFor="api-key">CoinGecko API Key</FieldLabel>
+              <FieldLabel htmlFor="api-key">CoinGecko API Key (Optional)</FieldLabel>
               <Input
                 id="api-key"
                 type="password"
@@ -84,15 +84,26 @@ export function ApiSettings({ onApiKeyChange }: ApiSettingsProps) {
               />
             </FieldGroup>
 
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>• API endpoint: https://api.coingecko.com/api/v3</p>
-              <p>• Free tier available with rate limits</p>
-              <p>• Your key is stored locally in your browser</p>
+            <div className="text-xs text-muted-foreground space-y-2">
+              <div className="bg-card/50 rounded p-2">
+                <p className="font-medium text-foreground mb-1">How it works:</p>
+                <ul className="space-y-1">
+                  <li>✓ Uses internal proxy: <code className="bg-background px-1 rounded">/api/coins</code></li>
+                  <li>✓ Fetches 6 concurrent pages (1,500 coins)</li>
+                  <li>✓ Calculates volume-to-market-cap ratio</li>
+                  <li>✓ Filters coins with ratio {'>'}0.05</li>
+                  <li>✓ Server-side caching for performance</li>
+                </ul>
+              </div>
+              <p>
+                Set your API key in <code className="bg-background px-1 rounded text-xs">.env.local</code> to
+                increase rate limits
+              </p>
             </div>
 
             {apiKey && (
               <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                ✓ API key configured
+                ✓ API key configured in localStorage
               </div>
             )}
           </div>
