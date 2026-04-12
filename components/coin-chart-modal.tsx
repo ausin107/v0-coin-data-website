@@ -187,7 +187,7 @@ export function CoinChartModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl w-[98vw] h-[95vh] max-h-[95vh] overflow-y-auto flex flex-col">
+      <DialogContent className="max-w-6xl w-[98vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             {coinImage && (
@@ -296,7 +296,7 @@ export function CoinChartModal({
         )}
 
         {/* Chart Content */}
-        <div className="flex-1 min-h-[600px]">
+        <div className="min-h-[400px]">
           {loading ? (
             <div className="flex h-[400px] items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -315,7 +315,7 @@ export function CoinChartModal({
               </div>
             </div>
           ) : chartType === 'price-volume' ? (
-            <ChartContainer config={priceVolumeConfig} className="h-full w-full">
+            <ChartContainer config={priceVolumeConfig} className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
@@ -389,7 +389,7 @@ export function CoinChartModal({
               </ResponsiveContainer>
             </ChartContainer>
           ) : (
-            <ChartContainer config={marketCapConfig} className="h-full w-full">
+            <ChartContainer config={marketCapConfig} className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
