@@ -222,48 +222,47 @@ export function CoinTracker() {
   })
 
   return (
-    <div className="w-full bg-gradient-to-br from-background via-background to-card/20">
-      {/* Header */}
-      <div className="border-b border-border/40 bg-gradient-to-r from-background to-card/10 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4">
+    <div className="w-full min-h-screen bg-background">
+      {/* Header with Title and Search */}
+      <div className="border-b border-border/40">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                 <TrendingUpIcon className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-foreground">CryptoTracker</h1>
-                <p className="text-sm text-muted-foreground">Real-time cryptocurrency prices and market data</p>
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative w-full max-w-md">
+            {/* Search Bar on the Right */}
+            <div className="relative w-full max-w-sm ml-8">
               <SearchIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search coins by name or symbol..."
+                placeholder="Search coins..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-card border-border/60 focus:border-primary"
+                className="pl-10 bg-card/50 border-border/60 focus:border-primary h-10"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Category Bar */}
-      <div className="border-b border-border/40 bg-card/30 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex gap-2 overflow-x-auto pb-2">
+      {/* Category Bar - Minimal and Clean */}
+      <div className="border-b border-border/40 bg-card/20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1 overflow-x-auto py-3">
             {CATEGORIES.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`whitespace-nowrap rounded-full px-4 py-2 font-medium transition-all ${
+                className={`whitespace-nowrap text-sm px-3 py-1.5 rounded-md font-medium transition-all ${
                   selectedCategory === category
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {category}
@@ -273,8 +272,8 @@ export function CoinTracker() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Table Content */}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
             <p className="font-medium">Error loading coins</p>
@@ -297,10 +296,24 @@ export function CoinTracker() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {filteredCoins.map((coin) => (
-              <CoinCard key={coin.id} coin={coin} />
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-border/40 text-xs font-semibold text-muted-foreground uppercase">
+                  <th className="px-4 py-3 text-left w-12">#</th>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-right">Price</th>
+                  <th className="px-4 py-3 text-right">24h %</th>
+                  <th className="px-4 py-3 text-right">Market Cap</th>
+                  <th className="px-4 py-3 text-right">Volume (24h)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCoins.map((coin, index) => (
+                  <CoinRow key={coin.id} coin={coin} index={index + 1} />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -308,102 +321,57 @@ export function CoinTracker() {
   )
 }
 
-function CoinCard({ coin }: { coin: Coin }) {
+function CoinRow({ coin, index }: { coin: Coin; index: number }) {
   const isPositive = coin.price_change_percentage_24h >= 0
-  const isPriceUp = coin.high_24h >= coin.current_price
 
   return (
-    <Card className="group overflow-hidden border-border/40 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
-      <div className="p-6">
-        {/* Top Row - Coin Info */}
-        <div className="mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-muted">
-              <img
-                src={coin.image}
-                alt={coin.name}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">
-                {coin.name}
-              </h3>
-              <p className="text-sm font-medium text-primary uppercase">
-                {coin.symbol}
-              </p>
-            </div>
+    <tr className="border-b border-border/20 hover:bg-card/30 transition-colors">
+      <td className="px-4 py-4 text-sm font-medium text-muted-foreground">
+        {index}
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+            <img
+              src={coin.image}
+              alt={coin.name}
+              className="h-full w-full object-cover"
+            />
           </div>
-          {coin.market_cap_rank && (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-              #{coin.market_cap_rank}
-            </div>
+          <div>
+            <p className="font-medium text-foreground">{coin.name}</p>
+            <p className="text-xs text-muted-foreground uppercase">{coin.symbol}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4 text-right font-semibold text-foreground">
+        ${coin.current_price?.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: coin.current_price < 1 ? 8 : 2,
+        }) || 'N/A'}
+      </td>
+      <td className="px-4 py-4 text-right">
+        <div
+          className={`inline-flex items-center gap-1 text-sm font-medium ${
+            isPositive
+              ? 'text-green-500'
+              : 'text-red-500'
+          }`}
+        >
+          {isPositive ? (
+            <ArrowUpIcon className="h-4 w-4" />
+          ) : (
+            <ArrowDownIcon className="h-4 w-4" />
           )}
+          {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
         </div>
-
-        {/* Price Section */}
-        <div className="mb-4 space-y-2">
-          <div className="text-3xl font-bold text-foreground">
-            ${coin.current_price?.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: coin.current_price < 1 ? 8 : 2,
-            }) || 'N/A'}
-          </div>
-
-          {/* 24h Change */}
-          <div
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium ${
-              isPositive
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : 'bg-red-500/10 text-red-600 dark:text-red-400'
-            }`}
-          >
-            {isPositive ? (
-              <ArrowUpIcon className="h-4 w-4" />
-            ) : (
-              <ArrowDownIcon className="h-4 w-4" />
-            )}
-            {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
-          </div>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-4">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase">Market Cap</p>
-            <p className="font-semibold text-foreground">
-              {coin.market_cap ? `$${(coin.market_cap / 1e9).toFixed(2)}B` : 'N/A'}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase">24h Volume</p>
-            <p className="font-semibold text-foreground">
-              {coin.total_volume ? `$${(coin.total_volume / 1e9).toFixed(2)}B` : 'N/A'}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase">24h High</p>
-            <p className="font-semibold text-foreground">
-              ${coin.high_24h?.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: coin.high_24h < 1 ? 8 : 2,
-              }) || 'N/A'}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase">24h Low</p>
-            <p className="font-semibold text-foreground">
-              ${coin.low_24h?.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: coin.low_24h < 1 ? 8 : 2,
-              }) || 'N/A'}
-            </p>
-          </div>
-        </div>
-      </div>
-    </Card>
+      </td>
+      <td className="px-4 py-4 text-right text-sm font-medium text-foreground">
+        {coin.market_cap ? `$${(coin.market_cap / 1e9).toFixed(2)}B` : 'N/A'}
+      </td>
+      <td className="px-4 py-4 text-right text-sm font-medium text-foreground">
+        {coin.total_volume ? `$${(coin.total_volume / 1e9).toFixed(2)}B` : 'N/A'}
+      </td>
+    </tr>
   )
 }
