@@ -31,7 +31,7 @@ export async function GET(
       headers['x-cg-demo-api-key'] = API_KEY
     }
 
-    const url = `${COINGECKO_API_URL}/${id}/market_chart?vs_currency=usd&days=180&interval=daily`
+    const url = `${COINGECKO_API_URL}/${id}/market_chart?vs_currency=usd&days=300&interval=daily`
 
     const response = await fetch(url, {
       method: 'GET',

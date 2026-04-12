@@ -238,7 +238,7 @@ export function CoinChartModal({
 
           {/* Time Range Selector */}
           <div className="flex gap-1">
-            {[7, 30, 90, 180].map((days) => (
+            {[7, 30, 90, 180, 300].map((days) => (
               <Button
                 key={days}
                 variant={timeRange === days ? 'secondary' : 'ghost'}
@@ -351,15 +351,30 @@ export function CoinChartModal({
                     width={60}
                   />
                   <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value, name) => {
-                          if (name === 'price') return formatPrice(value as number)
-                          if (name === 'volume') return formatVolume(value as number)
-                          return value
-                        }}
-                      />
-                    }
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      return (
+                        <div className="rounded-lg border bg-background p-3 shadow-md">
+                          <p className="text-sm font-medium text-foreground mb-2">{label}</p>
+                          {payload.map((entry, index) => (
+                            <div key={index} className="flex items-center gap-2 text-sm">
+                              <div
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: entry.color }}
+                              />
+                              <span className="text-muted-foreground">
+                                {entry.name === 'Price' ? 'Price:' : 'Volume:'}
+                              </span>
+                              <span className="font-medium text-foreground">
+                                {entry.name === 'Price'
+                                  ? formatPrice(entry.value as number)
+                                  : formatVolume(entry.value as number)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }}
                   />
                   <Legend />
                   <Bar
@@ -426,16 +441,36 @@ export function CoinChartModal({
                     domain={[0, 'auto']}
                   />
                   <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value, name) => {
-                          if (name === 'marketCap') return formatMarketCap(value as number)
-                          if (name === 'volume') return formatVolume(value as number)
-                          if (name === 'volMcRatio') return (value as number).toFixed(4)
-                          return value
-                        }}
-                      />
-                    }
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      return (
+                        <div className="rounded-lg border bg-background p-3 shadow-md">
+                          <p className="text-sm font-medium text-foreground mb-2">{label}</p>
+                          {payload.map((entry, index) => {
+                            let labelText = ''
+                            let formattedValue = ''
+                            if (entry.dataKey === 'marketCap') {
+                              labelText = 'Market Cap:'
+                              formattedValue = formatMarketCap(entry.value as number)
+                            } else if (entry.dataKey === 'volMcRatio') {
+                              labelText = 'Vol/MC Ratio:'
+                              formattedValue = (entry.value as number).toFixed(4)
+                            }
+                            if (!labelText) return null
+                            return (
+                              <div key={index} className="flex items-center gap-2 text-sm">
+                                <div
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-muted-foreground">{labelText}</span>
+                                <span className="font-medium text-foreground">{formattedValue}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }}
                   />
                   <Legend />
                   <Bar
