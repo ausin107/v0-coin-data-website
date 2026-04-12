@@ -187,7 +187,7 @@ export function CoinChartModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[95vw] w-[1400px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!max-w-[95vw] w-[95vw] sm:!max-w-[95vw] lg:w-[1400px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             {coinImage && (
