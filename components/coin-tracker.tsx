@@ -25,6 +25,7 @@ import {
   SunIcon,
   FilterIcon,
   XIcon,
+  ChevronUpIcon,
 } from 'lucide-react'
 import { fetchCoinsFromAPI, type CoinData } from '@/lib/services/coin-service'
 import { ApiSettings } from '@/components/api-settings'
@@ -83,6 +84,7 @@ type Coin = CoinData
 type SortField =
   | 'price_change_percentage_24h'
   | 'price_change_percentage_7d_in_currency'
+  | 'price_change_percentage_14d_in_currency'
   | 'price_change_percentage_30d_in_currency'
   | 'price_change_percentage_200d_in_currency'
   | 'market_cap'
@@ -107,6 +109,18 @@ export function CoinTracker() {
   const [maxMarketCap, setMaxMarketCap] = useState('')
   const [minVolume, setMinVolume] = useState('')
   const [maxVolume, setMaxVolume] = useState('')
+  const [minVolMcRatio, setMinVolMcRatio] = useState('')
+  const [maxVolMcRatio, setMaxVolMcRatio] = useState('')
+  const [min24h, setMin24h] = useState('')
+  const [max24h, setMax24h] = useState('')
+  const [min7d, setMin7d] = useState('')
+  const [max7d, setMax7d] = useState('')
+  const [min14d, setMin14d] = useState('')
+  const [max14d, setMax14d] = useState('')
+  const [min30d, setMin30d] = useState('')
+  const [max30d, setMax30d] = useState('')
+  const [min200d, setMin200d] = useState('')
+  const [max200d, setMax200d] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
   // Initialize dark mode from system preference or localStorage
@@ -226,6 +240,60 @@ export function CoinTracker() {
       result = result.filter((coin) => (coin.total_volume ?? 0) <= maxVol)
     }
 
+    // Vol/MC ratio filters
+    const minRatio = minVolMcRatio ? parseFloat(minVolMcRatio) : null
+    const maxRatio = maxVolMcRatio ? parseFloat(maxVolMcRatio) : null
+    if (minRatio !== null && !isNaN(minRatio)) {
+      result = result.filter((coin) => (coin.volume_to_mc_ratio ?? 0) >= minRatio)
+    }
+    if (maxRatio !== null && !isNaN(maxRatio)) {
+      result = result.filter((coin) => (coin.volume_to_mc_ratio ?? 0) <= maxRatio)
+    }
+
+    // Price change percentage filters
+    const parsePercent = (val: string) => (val ? parseFloat(val) : null)
+    const min24hVal = parsePercent(min24h)
+    const max24hVal = parsePercent(max24h)
+    const min7dVal = parsePercent(min7d)
+    const max7dVal = parsePercent(max7d)
+    const min14dVal = parsePercent(min14d)
+    const max14dVal = parsePercent(max14d)
+    const min30dVal = parsePercent(min30d)
+    const max30dVal = parsePercent(max30d)
+    const min200dVal = parsePercent(min200d)
+    const max200dVal = parsePercent(max200d)
+
+    if (min24hVal !== null && !isNaN(min24hVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_24h ?? -Infinity) >= min24hVal)
+    }
+    if (max24hVal !== null && !isNaN(max24hVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_24h ?? Infinity) <= max24hVal)
+    }
+    if (min7dVal !== null && !isNaN(min7dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_7d_in_currency ?? -Infinity) >= min7dVal)
+    }
+    if (max7dVal !== null && !isNaN(max7dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_7d_in_currency ?? Infinity) <= max7dVal)
+    }
+    if (min14dVal !== null && !isNaN(min14dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_14d_in_currency ?? -Infinity) >= min14dVal)
+    }
+    if (max14dVal !== null && !isNaN(max14dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_14d_in_currency ?? Infinity) <= max14dVal)
+    }
+    if (min30dVal !== null && !isNaN(min30dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_30d_in_currency ?? -Infinity) >= min30dVal)
+    }
+    if (max30dVal !== null && !isNaN(max30dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_30d_in_currency ?? Infinity) <= max30dVal)
+    }
+    if (min200dVal !== null && !isNaN(min200dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_200d_in_currency ?? -Infinity) >= min200dVal)
+    }
+    if (max200dVal !== null && !isNaN(max200dVal)) {
+      result = result.filter((coin) => (coin.price_change_percentage_200d_in_currency ?? Infinity) <= max200dVal)
+    }
+
     // Sort
     if (sortField && sortDirection) {
       result = [...result].sort((a, b) => {
@@ -236,22 +304,34 @@ export function CoinTracker() {
     }
 
     return result
-  }, [coins, searchTerm, sortField, sortDirection, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume])
+  }, [coins, searchTerm, sortField, sortDirection, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume, minVolMcRatio, maxVolMcRatio, min24h, max24h, min7d, max7d, min14d, max14d, min30d, max30d, min200d, max200d])
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume])
+  }, [searchTerm, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume, minVolMcRatio, maxVolMcRatio, min24h, max24h, min7d, max7d, min14d, max14d, min30d, max30d, min200d, max200d])
 
   const clearFilters = () => {
     setMinMarketCap('')
     setMaxMarketCap('')
     setMinVolume('')
     setMaxVolume('')
+    setMinVolMcRatio('')
+    setMaxVolMcRatio('')
+    setMin24h('')
+    setMax24h('')
+    setMin7d('')
+    setMax7d('')
+    setMin14d('')
+    setMax14d('')
+    setMin30d('')
+    setMax30d('')
+    setMin200d('')
+    setMax200d('')
     setHideStablecoins(true)
   }
 
-  const hasActiveFilters = minMarketCap || maxMarketCap || minVolume || maxVolume || !hideStablecoins
+  const hasActiveFilters = minMarketCap || maxMarketCap || minVolume || maxVolume || minVolMcRatio || maxVolMcRatio || min24h || max24h || min7d || max7d || min14d || max14d || min30d || max30d || min200d || max200d || !hideStablecoins
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredAndSortedCoins.length / ROWS_PER_PAGE)
@@ -404,57 +484,177 @@ export function CoinTracker() {
               </div>
 
               {/* Filter Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                {/* Market Cap Min */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Min Market Cap</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 100M"
-                    value={minMarketCap}
-                    onChange={(e) => setMinMarketCap(e.target.value)}
-                    className="h-8 text-xs bg-background"
-                  />
+              <div className="space-y-4">
+                {/* Row 1: Market Cap & Volume */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min Market Cap</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 100M"
+                      value={minMarketCap}
+                      onChange={(e) => setMinMarketCap(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max Market Cap</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 10B"
+                      value={maxMarketCap}
+                      onChange={(e) => setMaxMarketCap(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min Volume</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 50M"
+                      value={minVolume}
+                      onChange={(e) => setMinVolume(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max Volume</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 5B"
+                      value={maxVolume}
+                      onChange={(e) => setMaxVolume(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min Vol/MC</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 0.1"
+                      value={minVolMcRatio}
+                      onChange={(e) => setMinVolMcRatio(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max Vol/MC</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 0.5"
+                      value={maxVolMcRatio}
+                      onChange={(e) => setMaxVolMcRatio(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
 
-                {/* Market Cap Max */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Max Market Cap</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 10B"
-                    value={maxMarketCap}
-                    onChange={(e) => setMaxMarketCap(e.target.value)}
-                    className="h-8 text-xs bg-background"
-                  />
+                {/* Row 2: Price Change Filters */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min 24h%</label>
+                    <Input
+                      type="text"
+                      placeholder="-10"
+                      value={min24h}
+                      onChange={(e) => setMin24h(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max 24h%</label>
+                    <Input
+                      type="text"
+                      placeholder="50"
+                      value={max24h}
+                      onChange={(e) => setMax24h(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min 7d%</label>
+                    <Input
+                      type="text"
+                      placeholder="-20"
+                      value={min7d}
+                      onChange={(e) => setMin7d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max 7d%</label>
+                    <Input
+                      type="text"
+                      placeholder="100"
+                      value={max7d}
+                      onChange={(e) => setMax7d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min 14d%</label>
+                    <Input
+                      type="text"
+                      placeholder="-30"
+                      value={min14d}
+                      onChange={(e) => setMin14d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max 14d%</label>
+                    <Input
+                      type="text"
+                      placeholder="150"
+                      value={max14d}
+                      onChange={(e) => setMax14d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min 30d%</label>
+                    <Input
+                      type="text"
+                      placeholder="-50"
+                      value={min30d}
+                      onChange={(e) => setMin30d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max 30d%</label>
+                    <Input
+                      type="text"
+                      placeholder="200"
+                      value={max30d}
+                      onChange={(e) => setMax30d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Min 200d%</label>
+                    <Input
+                      type="text"
+                      placeholder="-80"
+                      value={min200d}
+                      onChange={(e) => setMin200d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Max 200d%</label>
+                    <Input
+                      type="text"
+                      placeholder="500"
+                      value={max200d}
+                      onChange={(e) => setMax200d(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
 
-                {/* Volume Min */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Min Volume (24h)</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 50M"
-                    value={minVolume}
-                    onChange={(e) => setMinVolume(e.target.value)}
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-
-                {/* Volume Max */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Max Volume (24h)</label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 5B"
-                    value={maxVolume}
-                    onChange={(e) => setMaxVolume(e.target.value)}
-                    className="h-8 text-xs bg-background"
-                  />
-                </div>
-
-                {/* Hide Stablecoins Toggle */}
-                <div className="col-span-2 flex items-end">
+                {/* Row 3: Toggle & Helper */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -464,13 +664,11 @@ export function CoinTracker() {
                     />
                     <span className="text-xs text-muted-foreground">Hide Stablecoins</span>
                   </label>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    Market Cap/Volume: use K, M, B suffixes (e.g. 100M). Price changes: enter percentage values.
+                  </p>
                 </div>
               </div>
-
-              {/* Helper Text */}
-              <p className="text-[10px] sm:text-xs text-muted-foreground">
-                Use K (thousand), M (million), B (billion) suffixes. Example: 100M, 1.5B
-              </p>
             </div>
           </div>
         </div>
@@ -504,7 +702,7 @@ export function CoinTracker() {
             {/* Table */}
             <div className="rounded-lg border border-border/40 overflow-hidden">
               <div className="overflow-x-auto">
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[1050px]">
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-16 text-center font-semibold">#</TableHead>
@@ -516,6 +714,11 @@ export function CoinTracker() {
                     <TableHead className="text-right font-semibold">
                       <SortableHeader field="price_change_percentage_7d_in_currency">
                         7d %
+                      </SortableHeader>
+                    </TableHead>
+                    <TableHead className="text-right font-semibold">
+                      <SortableHeader field="price_change_percentage_14d_in_currency">
+                        14d %
                       </SortableHeader>
                     </TableHead>
                     <TableHead className="text-right font-semibold">
@@ -541,7 +744,7 @@ export function CoinTracker() {
                 </TableHeader>
                 <TableBody>
                   {paginatedCoins.map((coin, index) => (
-                    <CoinRow key={coin.id} coin={coin} index={startIndex + index + 1} />
+                    <CoinRow key={`${coin.id}-${startIndex + index}`} coin={coin} index={startIndex + index + 1} />
                   ))}
                 </TableBody>
               </Table>
@@ -584,6 +787,19 @@ export function CoinTracker() {
             </div>
           </div>
         )}
+
+        {/* Scroll to Top Button */}
+        <div className="flex justify-center pt-4 pb-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="gap-2"
+          >
+            <ChevronUpIcon className="h-4 w-4" />
+            Back to Top
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -655,6 +871,9 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
       <TableCell className="text-right">{formatPercent(coin.price_change_percentage_24h)}</TableCell>
       <TableCell className="text-right">
         {formatPercent(coin.price_change_percentage_7d_in_currency)}
+      </TableCell>
+      <TableCell className="text-right">
+        {formatPercent(coin.price_change_percentage_14d_in_currency)}
       </TableCell>
       <TableCell className="text-right">
         {formatPercent(coin.price_change_percentage_30d_in_currency)}
