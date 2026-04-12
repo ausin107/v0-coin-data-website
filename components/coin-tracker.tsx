@@ -21,9 +21,22 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronsUpDownIcon,
+  MoonIcon,
+  SunIcon,
 } from 'lucide-react'
 import { fetchCoinsFromAPI, type CoinData } from '@/lib/services/coin-service'
 import { ApiSettings } from '@/components/api-settings'
+
+// Helper function to get vol/mc ratio color intensity
+function getVolMcRatioColor(ratio: number): string {
+  // Starting from 0.05, higher ratio = darker/more intense green
+  if (ratio < 0.05) return 'bg-muted/50 text-muted-foreground'
+  if (ratio < 0.1) return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+  if (ratio < 0.2) return 'bg-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+  if (ratio < 0.3) return 'bg-emerald-500/60 text-emerald-800 dark:text-emerald-200'
+  if (ratio < 0.5) return 'bg-emerald-500/80 text-emerald-900 dark:text-emerald-100'
+  return 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white'
+}
 
 type Coin = CoinData
 
@@ -48,6 +61,23 @@ export function CoinTracker() {
   const [currentPage, setCurrentPage] = useState(1)
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  // Initialize dark mode from system preference or localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme')
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark)
+    setIsDarkMode(shouldBeDark)
+    document.documentElement.classList.toggle('dark', shouldBeDark)
+  }, [])
+
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    document.documentElement.classList.toggle('dark', newMode)
+    localStorage.setItem('theme', newMode ? 'dark' : 'light')
+  }
 
   const loadCoins = useCallback(async () => {
     let retries = 0
@@ -173,50 +203,79 @@ export function CoinTracker() {
   return (
     <div className="w-full min-h-screen bg-background">
       {/* Header with Title and Search */}
-      <div className="border-b border-border/40">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <TrendingUpIcon className="h-6 w-6 text-primary-foreground" />
+      <div className="border-b border-border/40 sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            {/* Logo and Title */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary">
+                  <TrendingUpIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                </div>
+                <h1 className="text-xl sm:text-3xl font-bold text-foreground">CryptoTracker</h1>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">CryptoTracker</h1>
+
+              {/* Mobile action buttons */}
+              <div className="flex items-center gap-1 sm:hidden">
+                <button
+                  onClick={toggleDarkMode}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  title={isDarkMode ? 'Light mode' : 'Dark mode'}
+                >
+                  {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                </button>
+                <button
+                  onClick={loadCoins}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+                  title="Refresh data"
+                >
+                  <RefreshCwIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <ApiSettings onApiKeyChange={handleApiKeyChange} />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 ml-auto">
+            {/* Search and Desktop Actions */}
+            <div className="flex items-center gap-2">
               {/* Search Bar */}
-              <div className="relative w-64">
-                <SearchIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <div className="relative flex-1 sm:w-64 sm:flex-none">
+                <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Search coins..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-card/50 border-border/60 focus:border-primary h-10"
+                  className="pl-9 sm:pl-10 bg-card/50 border-border/60 focus:border-primary h-9 sm:h-10 text-sm"
                 />
               </div>
 
-              {/* Refresh Button */}
-              <button
-                onClick={loadCoins}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-card/50 transition-colors disabled:opacity-50"
-                title="Refresh data"
-              >
-                <RefreshCwIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-
-              {/* API Settings */}
-              <ApiSettings onApiKeyChange={handleApiKeyChange} />
+              {/* Desktop action buttons */}
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  onClick={toggleDarkMode}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  title={isDarkMode ? 'Light mode' : 'Dark mode'}
+                >
+                  {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                </button>
+                <button
+                  onClick={loadCoins}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+                  title="Refresh data"
+                >
+                  <RefreshCwIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <ApiSettings onApiKeyChange={handleApiKeyChange} />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Table Content */}
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
             <p className="font-medium">Error loading coins</p>
@@ -242,7 +301,8 @@ export function CoinTracker() {
           <div className="space-y-4">
             {/* Table */}
             <div className="rounded-lg border border-border/40 overflow-hidden">
-              <Table>
+              <div className="overflow-x-auto">
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-16 text-center font-semibold">#</TableHead>
@@ -283,28 +343,29 @@ export function CoinTracker() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-2">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
+              <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                 Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedCoins.length)} of{' '}
                 {filteredAndSortedCoins.length} coins
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="gap-1"
+                  className="gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
                 >
                   <ChevronLeftIcon className="h-4 w-4" />
-                  Previous
+                  <span className="hidden sm:inline">Previous</span>
                 </Button>
                 <div className="flex items-center gap-1 px-2">
-                  <span className="text-sm font-medium">
-                    Page {currentPage} of {totalPages || 1}
+                  <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+                    {currentPage} / {totalPages || 1}
                   </span>
                 </div>
                 <Button
@@ -312,9 +373,9 @@ export function CoinTracker() {
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
-                  className="gap-1"
+                  className="gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
                 >
-                  Next
+                  <span className="hidden sm:inline">Next</span>
                   <ChevronRightIcon className="h-4 w-4" />
                 </Button>
               </div>
@@ -328,18 +389,19 @@ export function CoinTracker() {
 
 function CoinRow({ coin, index }: { coin: Coin; index: number }) {
   const formatPercent = (value: number | undefined) => {
-    if (value === undefined || value === null) return <span className="text-muted-foreground">N/A</span>
+    if (value === undefined || value === null)
+      return <span className="text-muted-foreground text-xs sm:text-sm">N/A</span>
     const isPositive = value >= 0
     return (
       <span
-        className={`inline-flex items-center gap-1 text-sm font-medium ${
+        className={`inline-flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm font-medium ${
           isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
         }`}
       >
         {isPositive ? (
-          <ArrowUpIcon className="h-3 w-3" />
+          <ArrowUpIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
         ) : (
-          <ArrowDownIcon className="h-3 w-3" />
+          <ArrowDownIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
         )}
         {Math.abs(value).toFixed(2)}%
       </span>
@@ -354,22 +416,20 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
     return `$${value.toLocaleString()}`
   }
 
-  // Proxy image through Vercel's image optimizer to bypass CORS
-  const proxiedImageUrl = coin.image
-    ? `/_next/image?url=${encodeURIComponent(coin.image)}&w=32&q=75`
-    : undefined
-
   return (
     <TableRow className="hover:bg-muted/30">
-      <TableCell className="text-center font-medium text-muted-foreground">{index}</TableCell>
-      <TableCell>
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-muted">
-            {proxiedImageUrl ? (
+      <TableCell className="text-center font-medium text-muted-foreground text-xs sm:text-sm">
+        {index}
+      </TableCell>
+      <TableCell className="min-w-[140px] sm:min-w-[180px]">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+            {coin.image ? (
               <img
-                src={proxiedImageUrl}
+                src={coin.image}
                 alt={coin.name}
                 className="h-full w-full object-cover"
+                loading="lazy"
                 onError={(e) => {
                   const img = e.target as HTMLImageElement
                   img.style.display = 'none'
@@ -377,13 +437,13 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
               />
             ) : null}
           </div>
-          <div>
-            <p className="font-medium text-foreground">{coin.name}</p>
-            <p className="text-xs text-muted-foreground uppercase">{coin.symbol}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-foreground text-sm sm:text-base truncate">{coin.name}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">{coin.symbol}</p>
           </div>
         </div>
       </TableCell>
-      <TableCell className="text-right font-semibold text-foreground">
+      <TableCell className="text-right font-semibold text-foreground text-xs sm:text-sm whitespace-nowrap">
         $
         {coin.current_price?.toLocaleString('en-US', {
           minimumFractionDigits: 2,
@@ -400,19 +460,15 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
       <TableCell className="text-right">
         {formatPercent(coin.price_change_percentage_200d_in_currency)}
       </TableCell>
-      <TableCell className="text-right text-sm font-medium text-foreground">
+      <TableCell className="text-right text-xs sm:text-sm font-medium text-foreground whitespace-nowrap">
         {formatMarketCap(coin.market_cap)}
       </TableCell>
-      <TableCell className="text-right text-sm font-medium text-foreground">
+      <TableCell className="text-right text-xs sm:text-sm font-medium text-foreground whitespace-nowrap">
         {formatMarketCap(coin.total_volume)}
       </TableCell>
       <TableCell className="text-right">
         <span
-          className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs font-semibold ${
-            coin.volume_to_mc_ratio > 0.1
-              ? 'bg-green-500/15 text-green-600 dark:text-green-400'
-              : 'bg-primary/10 text-primary'
-          }`}
+          className={`inline-flex items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-semibold ${getVolMcRatioColor(coin.volume_to_mc_ratio ?? 0)}`}
         >
           {coin.volume_to_mc_ratio?.toFixed(3) ?? 'N/A'}
         </span>
