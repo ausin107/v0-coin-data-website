@@ -123,6 +123,13 @@ export function CoinTracker() {
   const [min200d, setMin200d] = useState('')
   const [max200d, setMax200d] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedCoin, setSelectedCoin] = useState<Coin | null>(null)
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false)
+
+  const handleCoinClick = useCallback((coin: Coin) => {
+    setSelectedCoin(coin)
+    setIsChartModalOpen(true)
+  }, [])
 
   // Initialize dark mode from system preference or localStorage
   useEffect(() => {
@@ -743,7 +750,7 @@ export function CoinTracker() {
                   </TableHeader>
                   <TableBody>
                     {paginatedCoins.map((coin, index) => (
-                      <CoinRow key={`${coin.id}-${startIndex + index}`} coin={coin} index={startIndex + index + 1} />
+                      <CoinRow key={`${coin.id}-${startIndex + index}`} coin={coin} index={startIndex + index + 1} onCoinClick={handleCoinClick} />
                     ))}
                   </TableBody>
                 </Table>
@@ -800,6 +807,22 @@ export function CoinTracker() {
           </Button>
         </div>
       </div>
+
+      {/* Chart Modal */}
+      {selectedCoin && (
+        <CoinChartModal
+          isOpen={isChartModalOpen}
+          onClose={() => {
+            setIsChartModalOpen(false)
+            setSelectedCoin(null)
+          }}
+          coinId={selectedCoin.id}
+          coinName={selectedCoin.name}
+          coinSymbol={selectedCoin.symbol}
+          coinImage={selectedCoin.image}
+          currentPrice={selectedCoin.current_price}
+        />
+      )}
     </div>
   )
 }
