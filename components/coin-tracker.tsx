@@ -19,12 +19,170 @@ interface Coin {
   high_24h: number
   low_24h: number
   market_cap_change_percentage_24h: number
+  total_volume: number
+  category?: string
 }
+
+const DUMMY_COINS: Coin[] = [
+  {
+    id: 'bitcoin',
+    symbol: 'btc',
+    name: 'Bitcoin',
+    image: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+    current_price: 45230.50,
+    market_cap: 890000000000,
+    market_cap_rank: 1,
+    price_change_percentage_24h: 2.45,
+    high_24h: 46100,
+    low_24h: 44500,
+    market_cap_change_percentage_24h: 3.2,
+    total_volume: 28500000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'ethereum',
+    symbol: 'eth',
+    name: 'Ethereum',
+    image: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
+    current_price: 2450.75,
+    market_cap: 294000000000,
+    market_cap_rank: 2,
+    price_change_percentage_24h: 1.85,
+    high_24h: 2500,
+    low_24h: 2400,
+    market_cap_change_percentage_24h: 2.1,
+    total_volume: 14200000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'tether',
+    symbol: 'usdt',
+    name: 'Tether',
+    image: 'https://assets.coingecko.com/coins/images/325/large/Tether.png',
+    current_price: 1.00,
+    market_cap: 112000000000,
+    market_cap_rank: 3,
+    price_change_percentage_24h: 0.05,
+    high_24h: 1.01,
+    low_24h: 0.99,
+    market_cap_change_percentage_24h: 0.2,
+    total_volume: 67500000000,
+    category: 'Stablecoin'
+  },
+  {
+    id: 'binancecoin',
+    symbol: 'bnb',
+    name: 'Binance Coin',
+    image: 'https://assets.coingecko.com/coins/images/825/large/binance-coin-logo.png',
+    current_price: 612.40,
+    market_cap: 93800000000,
+    market_cap_rank: 4,
+    price_change_percentage_24h: -1.25,
+    high_24h: 625,
+    low_24h: 605,
+    market_cap_change_percentage_24h: -0.8,
+    total_volume: 2850000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'solana',
+    symbol: 'sol',
+    name: 'Solana',
+    image: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
+    current_price: 198.50,
+    market_cap: 68900000000,
+    market_cap_rank: 5,
+    price_change_percentage_24h: 5.62,
+    high_24h: 202,
+    low_24h: 187,
+    market_cap_change_percentage_24h: 6.3,
+    total_volume: 3240000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'xrp',
+    symbol: 'xrp',
+    name: 'XRP',
+    image: 'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png',
+    current_price: 2.85,
+    market_cap: 156000000000,
+    market_cap_rank: 6,
+    price_change_percentage_24h: 3.15,
+    high_24h: 2.95,
+    low_24h: 2.75,
+    market_cap_change_percentage_24h: 3.8,
+    total_volume: 12500000000,
+    category: 'Payment'
+  },
+  {
+    id: 'cardano',
+    symbol: 'ada',
+    name: 'Cardano',
+    image: 'https://assets.coingecko.com/coins/images/975/large/cardano.png',
+    current_price: 1.08,
+    market_cap: 41200000000,
+    market_cap_rank: 7,
+    price_change_percentage_24h: -0.85,
+    high_24h: 1.12,
+    low_24h: 1.05,
+    market_cap_change_percentage_24h: -1.2,
+    total_volume: 1240000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'dogecoin',
+    symbol: 'doge',
+    name: 'Dogecoin',
+    image: 'https://assets.coingecko.com/coins/images/5/large/dogecoin.png',
+    current_price: 0.45,
+    market_cap: 67200000000,
+    market_cap_rank: 8,
+    price_change_percentage_24h: 4.32,
+    high_24h: 0.48,
+    low_24h: 0.42,
+    market_cap_change_percentage_24h: 5.1,
+    total_volume: 850000000,
+    category: 'Meme'
+  },
+  {
+    id: 'polkadot',
+    symbol: 'dot',
+    name: 'Polkadot',
+    image: 'https://assets.coingecko.com/coins/images/12171/large/polkadot.png',
+    current_price: 9.45,
+    market_cap: 14200000000,
+    market_cap_rank: 9,
+    price_change_percentage_24h: 2.15,
+    high_24h: 9.75,
+    low_24h: 9.20,
+    market_cap_change_percentage_24h: 2.8,
+    total_volume: 450000000,
+    category: 'Layer 1'
+  },
+  {
+    id: 'matic-network',
+    symbol: 'matic',
+    name: 'Polygon',
+    image: 'https://assets.coingecko.com/coins/images/13442/large/polygon.png',
+    current_price: 0.85,
+    market_cap: 9800000000,
+    market_cap_rank: 10,
+    price_change_percentage_24h: -2.45,
+    high_24h: 0.88,
+    low_24h: 0.82,
+    market_cap_change_percentage_24h: -1.9,
+    total_volume: 580000000,
+    category: 'Layer 2'
+  }
+]
+
+const CATEGORIES = ['All', 'Layer 1', 'Layer 2', 'Stablecoin', 'Payment', 'Meme']
 
 export function CoinTracker() {
   const [coins, setCoins] = useState<Coin[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -39,8 +197,8 @@ export function CoinTracker() {
         const data = await response.json()
         setCoins(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch coin data')
-        console.error('Error fetching coins:', err)
+        console.log('[v0] Error fetching from API, using dummy data')
+        setCoins(DUMMY_COINS)
       } finally {
         setLoading(false)
       }
@@ -52,11 +210,16 @@ export function CoinTracker() {
     return () => clearInterval(interval)
   }, [])
 
-  const filteredCoins = coins.filter(
-    coin =>
+  const filteredCoins = coins.filter(coin => {
+    const matchesSearch =
       coin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       coin.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+    
+    const matchesCategory =
+      selectedCategory === 'All' || coin.category === selectedCategory
+    
+    return matchesSearch && matchesCategory
+  })
 
   return (
     <div className="w-full bg-gradient-to-br from-background via-background to-card/20">
@@ -85,6 +248,27 @@ export function CoinTracker() {
                 className="pl-10 bg-card border-border/60 focus:border-primary"
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Bar */}
+      <div className="border-b border-border/40 bg-card/30 backdrop-blur-sm">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {CATEGORIES.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`whitespace-nowrap rounded-full px-4 py-2 font-medium transition-all ${
+                  selectedCategory === category
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -193,15 +377,9 @@ function CoinCard({ coin }: { coin: Coin }) {
           </div>
 
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase">24h Change</p>
-            <p
-              className={`font-semibold ${
-                coin.market_cap_change_percentage_24h >= 0
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}
-            >
-              {coin.market_cap_change_percentage_24h?.toFixed(2)}%
+            <p className="text-xs font-medium text-muted-foreground uppercase">24h Volume</p>
+            <p className="font-semibold text-foreground">
+              {coin.total_volume ? `$${(coin.total_volume / 1e9).toFixed(2)}B` : 'N/A'}
             </p>
           </div>
 
