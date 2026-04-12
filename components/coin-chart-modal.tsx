@@ -187,7 +187,7 @@ export function CoinChartModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl w-[98vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-[1400px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             {coinImage && (
@@ -258,11 +258,10 @@ export function CoinChartModal({
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Change ({timeRange}D)</p>
               <p
-                className={`text-sm font-semibold ${
-                  stats.priceChange >= 0
+                className={`text-sm font-semibold ${stats.priceChange >= 0
                     ? 'text-green-600 dark:text-green-400'
                     : 'text-red-600 dark:text-red-400'
-                }`}
+                  }`}
               >
                 {stats.priceChange >= 0 ? '+' : ''}
                 {stats.priceChange.toFixed(2)}%
