@@ -370,7 +370,7 @@ export function CoinTracker() {
     <div className="w-full min-h-screen bg-background">
       {/* Header with Title and Search */}
       <div className="border-b border-border/40 sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-8xl px-3 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             {/* Logo and Title */}
             <div className="flex items-center justify-between">
@@ -385,11 +385,10 @@ export function CoinTracker() {
               <div className="flex items-center gap-1 sm:hidden">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${
-                    showFilters || hasActiveFilters
-                      ? 'text-primary bg-primary/10'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  }`}
+                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${showFilters || hasActiveFilters
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
                   title="Filters"
                 >
                   <FilterIcon className="h-5 w-5" />
@@ -431,11 +430,10 @@ export function CoinTracker() {
               <div className="hidden sm:flex items-center gap-1">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${
-                    showFilters || hasActiveFilters
-                      ? 'text-primary bg-primary/10'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  }`}
+                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${showFilters || hasActiveFilters
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
                   title="Filters"
                 >
                   <FilterIcon className="h-5 w-5" />
@@ -465,7 +463,7 @@ export function CoinTracker() {
       {/* Filter Panel */}
       {showFilters && (
         <div className="border-b border-border/40 bg-muted/20">
-          <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-8xl px-3 py-4 sm:px-6 lg:px-8">
             <div className="flex flex-col gap-4">
               {/* Filter Header */}
               <div className="flex items-center justify-between">
@@ -675,7 +673,7 @@ export function CoinTracker() {
       )}
 
       {/* Table Content */}
-      <div className="mx-auto max-w-7xl px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-8xl px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
             <p className="font-medium">Error loading coins</p>
@@ -702,52 +700,52 @@ export function CoinTracker() {
             {/* Table */}
             <div className="rounded-lg border border-border/40 overflow-hidden">
               <div className="overflow-x-auto">
-              <Table className="min-w-[1050px]">
-                <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="w-16 text-center font-semibold">#</TableHead>
-                    <TableHead className="font-semibold">Name</TableHead>
-                    <TableHead className="text-right font-semibold">Price</TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="price_change_percentage_24h">24h %</SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="price_change_percentage_7d_in_currency">
-                        7d %
-                      </SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="price_change_percentage_14d_in_currency">
-                        14d %
-                      </SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="price_change_percentage_30d_in_currency">
-                        30d %
-                      </SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="price_change_percentage_200d_in_currency">
-                        200d %
-                      </SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="market_cap">Market Cap</SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="total_volume">Volume (24h)</SortableHeader>
-                    </TableHead>
-                    <TableHead className="text-right font-semibold">
-                      <SortableHeader field="volume_to_mc_ratio">Vol/MC</SortableHeader>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedCoins.map((coin, index) => (
-                    <CoinRow key={`${coin.id}-${startIndex + index}`} coin={coin} index={startIndex + index + 1} />
-                  ))}
-                </TableBody>
-              </Table>
+                <Table className="min-w-[1050px]">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="w-16 text-center font-semibold">#</TableHead>
+                      <TableHead className="font-semibold">Name</TableHead>
+                      <TableHead className="text-right font-semibold">Price</TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="price_change_percentage_24h">24h %</SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="price_change_percentage_7d_in_currency">
+                          7d %
+                        </SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="price_change_percentage_14d_in_currency">
+                          14d %
+                        </SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="price_change_percentage_30d_in_currency">
+                          30d %
+                        </SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="price_change_percentage_200d_in_currency">
+                          200d %
+                        </SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="market_cap">Market Cap</SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="total_volume">Volume (24h)</SortableHeader>
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        <SortableHeader field="volume_to_mc_ratio">Vol/MC</SortableHeader>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedCoins.map((coin, index) => (
+                      <CoinRow key={`${coin.id}-${startIndex + index}`} coin={coin} index={startIndex + index + 1} />
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
 
@@ -812,9 +810,8 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
     const isPositive = value >= 0
     return (
       <span
-        className={`inline-flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm font-medium ${
-          isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-        }`}
+        className={`inline-flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+          }`}
       >
         {isPositive ? (
           <ArrowUpIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
