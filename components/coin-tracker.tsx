@@ -23,6 +23,8 @@ import {
   ChevronsUpDownIcon,
   MoonIcon,
   SunIcon,
+  FilterIcon,
+  XIcon,
 } from 'lucide-react'
 import { fetchCoinsFromAPI, type CoinData } from '@/lib/services/coin-service'
 import { ApiSettings } from '@/components/api-settings'
@@ -36,6 +38,44 @@ function getVolMcRatioColor(ratio: number): string {
   if (ratio < 0.3) return 'bg-emerald-500/60 text-emerald-800 dark:text-emerald-200'
   if (ratio < 0.5) return 'bg-emerald-500/80 text-emerald-900 dark:text-emerald-100'
   return 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white'
+}
+
+// Helper function to check if a coin is a stablecoin
+function isStablecoin(coin: CoinData): boolean {
+  const priceNearOne = Math.abs((coin.current_price ?? 0) - 1) < 0.02 // Price around $1
+  const lowVolatility24h = Math.abs(coin.price_change_percentage_24h ?? 0) < 0.5 // 24h volatility under 0.5%
+  const lowVolatility1y = Math.abs(coin.price_change_percentage_1y_in_currency ?? 0) < 2 // 1 year volatility under 2%
+  return priceNearOne && lowVolatility24h && lowVolatility1y
+}
+
+// Helper function to remove duplicate coins (same id, symbol, name, and price)
+function removeDuplicateCoins(coins: CoinData[]): CoinData[] {
+  const seen = new Map<string, CoinData>()
+  for (const coin of coins) {
+    // Create a unique key based on all important properties
+    const key = `${coin.id}-${coin.symbol}-${coin.name}-${coin.current_price}-${coin.market_cap}`
+    if (!seen.has(key)) {
+      seen.set(key, coin)
+    }
+  }
+  return Array.from(seen.values())
+}
+
+// Helper to parse value with K, M, B suffixes
+function parseValueWithSuffix(value: string): number | null {
+  if (!value.trim()) return null
+  const cleanValue = value.trim().toUpperCase().replace(/,/g, '')
+  const match = cleanValue.match(/^(\d+\.?\d*)\s*([KMB]?)$/)
+  if (!match) return null
+  const num = parseFloat(match[1])
+  const suffix = match[2]
+  if (isNaN(num)) return null
+  switch (suffix) {
+    case 'K': return num * 1e3
+    case 'M': return num * 1e6
+    case 'B': return num * 1e9
+    default: return num
+  }
 }
 
 type Coin = CoinData
@@ -62,6 +102,12 @@ export function CoinTracker() {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [hideStablecoins, setHideStablecoins] = useState(true)
+  const [minMarketCap, setMinMarketCap] = useState('')
+  const [maxMarketCap, setMaxMarketCap] = useState('')
+  const [minVolume, setMinVolume] = useState('')
+  const [maxVolume, setMaxVolume] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
 
   // Initialize dark mode from system preference or localStorage
   useEffect(() => {
@@ -145,12 +191,42 @@ export function CoinTracker() {
   }
 
   const filteredAndSortedCoins = useMemo(() => {
-    let result = coins.filter(
+    // First remove duplicates
+    let result = removeDuplicateCoins(coins)
+
+    // Filter out stablecoins if enabled
+    if (hideStablecoins) {
+      result = result.filter((coin) => !isStablecoin(coin))
+    }
+
+    // Search filter
+    result = result.filter(
       (coin) =>
         coin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         coin.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    // Market cap filters
+    const minMC = parseValueWithSuffix(minMarketCap)
+    const maxMC = parseValueWithSuffix(maxMarketCap)
+    if (minMC !== null) {
+      result = result.filter((coin) => (coin.market_cap ?? 0) >= minMC)
+    }
+    if (maxMC !== null) {
+      result = result.filter((coin) => (coin.market_cap ?? 0) <= maxMC)
+    }
+
+    // Volume filters
+    const minVol = parseValueWithSuffix(minVolume)
+    const maxVol = parseValueWithSuffix(maxVolume)
+    if (minVol !== null) {
+      result = result.filter((coin) => (coin.total_volume ?? 0) >= minVol)
+    }
+    if (maxVol !== null) {
+      result = result.filter((coin) => (coin.total_volume ?? 0) <= maxVol)
+    }
+
+    // Sort
     if (sortField && sortDirection) {
       result = [...result].sort((a, b) => {
         const aValue = a[sortField] ?? 0
@@ -160,12 +236,22 @@ export function CoinTracker() {
     }
 
     return result
-  }, [coins, searchTerm, sortField, sortDirection])
+  }, [coins, searchTerm, sortField, sortDirection, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume])
 
-  // Reset to page 1 when search changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm])
+  }, [searchTerm, hideStablecoins, minMarketCap, maxMarketCap, minVolume, maxVolume])
+
+  const clearFilters = () => {
+    setMinMarketCap('')
+    setMaxMarketCap('')
+    setMinVolume('')
+    setMaxVolume('')
+    setHideStablecoins(true)
+  }
+
+  const hasActiveFilters = minMarketCap || maxMarketCap || minVolume || maxVolume || !hideStablecoins
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredAndSortedCoins.length / ROWS_PER_PAGE)
@@ -218,6 +304,17 @@ export function CoinTracker() {
               {/* Mobile action buttons */}
               <div className="flex items-center gap-1 sm:hidden">
                 <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${
+                    showFilters || hasActiveFilters
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                  title="Filters"
+                >
+                  <FilterIcon className="h-5 w-5" />
+                </button>
+                <button
                   onClick={toggleDarkMode}
                   className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                   title={isDarkMode ? 'Light mode' : 'Dark mode'}
@@ -253,6 +350,17 @@ export function CoinTracker() {
               {/* Desktop action buttons */}
               <div className="hidden sm:flex items-center gap-1">
                 <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`inline-flex items-center justify-center p-2 rounded-md transition-colors ${
+                    showFilters || hasActiveFilters
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                  title="Filters"
+                >
+                  <FilterIcon className="h-5 w-5" />
+                </button>
+                <button
                   onClick={toggleDarkMode}
                   className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                   title={isDarkMode ? 'Light mode' : 'Dark mode'}
@@ -273,6 +381,100 @@ export function CoinTracker() {
           </div>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="border-b border-border/40 bg-muted/20">
+          <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col gap-4">
+              {/* Filter Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+                <div className="flex items-center gap-2">
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <XIcon className="h-3 w-3" />
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                {/* Market Cap Min */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Min Market Cap</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 100M"
+                    value={minMarketCap}
+                    onChange={(e) => setMinMarketCap(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                {/* Market Cap Max */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Max Market Cap</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 10B"
+                    value={maxMarketCap}
+                    onChange={(e) => setMaxMarketCap(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                {/* Volume Min */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Min Volume (24h)</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 50M"
+                    value={minVolume}
+                    onChange={(e) => setMinVolume(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                {/* Volume Max */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Max Volume (24h)</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 5B"
+                    value={maxVolume}
+                    onChange={(e) => setMaxVolume(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+
+                {/* Hide Stablecoins Toggle */}
+                <div className="col-span-2 flex items-end">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hideStablecoins}
+                      onChange={(e) => setHideStablecoins(e.target.checked)}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <span className="text-xs text-muted-foreground">Hide Stablecoins</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Helper Text */}
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                Use K (thousand), M (million), B (billion) suffixes. Example: 100M, 1.5B
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table Content */}
       <div className="mx-auto max-w-7xl px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
