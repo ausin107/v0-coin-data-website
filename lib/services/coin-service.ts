@@ -46,13 +46,12 @@ export async function fetchCoinsFromAPI(): Promise<CoinData[]> {
   try {
     console.log('[v0] Fetching coins from internal proxy API')
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/api/coins`, {
+    // Use relative URL for both client and server-side rendering
+    const response = await fetch('/api/coins', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-      // Revalidate cache every 30 seconds
-      next: { revalidate: 30 },
     })
 
     if (!response.ok) {

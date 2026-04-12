@@ -18,20 +18,38 @@ export function CoinTracker() {
   const [error, setError] = useState<string | null>(null)
 
   const loadCoins = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await fetchCoinsFromAPI()
-      setCoins(data)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch coins'
-      console.error('[v0] Error fetching coins:', err)
-      setError(errorMessage)
-      setCoins([])
-    } finally {
-      setLoading(false)
+    let retries = 0
+    const maxRetries = 3
+    const delayMs = 1000
+
+    const attemptFetch = async (): Promise<void> => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await fetchCoinsFromAPI()
+        setCoins(data)
+      } catch (err) {
+        retries++
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch coins'
+        
+        if (retries < maxRetries) {
+          console.log(`[v0] Retry attempt ${retries}/${maxRetries} after ${delayMs}ms`)
+          await new Promise(resolve => setTimeout(resolve, delayMs * retries))
+          return attemptFetch()
+        }
+        
+        console.error('[v0] Error fetching coins after retries:', err)
+        setError(`Failed to load coins (${errorMessage}). Please check your connection and try again.`)
+        setCoins([])
+      } finally {
+        if (retries >= maxRetries || coins.length > 0) {
+          setLoading(false)
+        }
+      }
     }
-  }, [])
+
+    await attemptFetch()
+  }, [coins.length])
 
   useEffect(() => {
     loadCoins()
