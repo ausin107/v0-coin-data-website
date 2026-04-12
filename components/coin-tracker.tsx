@@ -149,6 +149,7 @@ export function CoinTracker() {
                   <th className="px-4 py-3 text-right">200d %</th>
                   <th className="px-4 py-3 text-right">Market Cap</th>
                   <th className="px-4 py-3 text-right">Volume (24h)</th>
+                  <th className="px-4 py-3 text-right">Vol/MC Ratio</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,6 +185,11 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
     )
   }
 
+  // Proxy image through Vercel's image optimizer to bypass CORS
+  const proxiedImageUrl = coin.image
+    ? `/_next/image?url=${encodeURIComponent(coin.image)}&w=32&q=75`
+    : undefined
+
   return (
     <tr className="border-b border-border/20 hover:bg-card/30 transition-colors">
       <td className="px-4 py-4 text-sm font-medium text-muted-foreground">
@@ -192,12 +198,17 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
       <td className="px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-muted">
-            <img
-              src={coin.image}
-              alt={coin.name}
-              className="h-full w-full object-cover"
-              crossOrigin="anonymous"
-            />
+            {proxiedImageUrl ? (
+              <img
+                src={proxiedImageUrl}
+                alt={coin.name}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement
+                  img.style.display = 'none'
+                }}
+              />
+            ) : null}
           </div>
           <div>
             <p className="font-medium text-foreground">{coin.name}</p>
@@ -228,6 +239,15 @@ function CoinRow({ coin, index }: { coin: Coin; index: number }) {
       </td>
       <td className="px-4 py-4 text-right text-sm font-medium text-foreground">
         {coin.total_volume ? `$${(coin.total_volume / 1e9).toFixed(2)}B` : 'N/A'}
+      </td>
+      <td className="px-4 py-4 text-right text-sm font-medium">
+        <div className={`inline-block px-2 py-1 rounded ${
+          coin.volume_to_mc_ratio > 0.1
+            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+            : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+        }`}>
+          {coin.volume_to_mc_ratio.toFixed(2)}
+        </div>
       </td>
     </tr>
   )
