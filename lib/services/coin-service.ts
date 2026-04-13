@@ -37,6 +37,34 @@ interface ApiResponse {
 }
 
 /**
+ * Fetch Binance Alpha Spotlight coins from the internal proxy API
+ * @returns Promise of transformed coin data array
+ */
+export async function fetchAlphaCoinsFromAPI(): Promise<CoinData[]> {
+  try {
+    const response = await fetch('/api/coins/alpha', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    }
+
+    const apiResponse: ApiResponse = await response.json()
+
+    if (!apiResponse.success) {
+      throw new Error(apiResponse.error || 'Failed to fetch alpha coins')
+    }
+
+    return apiResponse.data
+  } catch (error) {
+    console.error('[v0] Error fetching alpha coins from proxy API:', error)
+    throw error
+  }
+}
+
+/**
  * Fetch cryptocurrency market data from the internal proxy API
  * This route handler performs 6 concurrent fetches from CoinGecko API,
  * calculates volume_to_mc_ratio, and filters coins
