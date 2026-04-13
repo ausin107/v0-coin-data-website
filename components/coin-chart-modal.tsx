@@ -540,12 +540,13 @@ export function CoinChartModal({
                   {showWhaleSignals && whaleSignalCount > 0 && (
                     <Scatter
                       yAxisId="price"
-                      data={whaleSignalData}
+                      data={processedData}
                       fill={CHART_COLORS.whaleSignal}
                       name="Whale Signal"
-                      shape={(props: { cx?: number; cy?: number }) => {
-                        const { cx, cy } = props
-                        if (cx === undefined || cy === undefined) return null
+                      shape={(props: { cx?: number; cy?: number; payload?: ProcessedDataPoint }) => {
+                        const { cx, cy, payload } = props
+                        // Only render marker for anomaly points
+                        if (cx === undefined || cy === undefined || !payload?.isAnomaly) return null
                         return (
                           <g>
                             {/* Outer pulse circle */}
