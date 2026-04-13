@@ -27,8 +27,10 @@ import {
   Legend,
   Brush,
   ReferenceLine,
+  Scatter,
+  ZAxis,
 } from 'recharts'
-import { TrendingUpIcon, TrendingDownIcon, ActivityIcon, BarChart3Icon } from 'lucide-react'
+import { TrendingUpIcon, TrendingDownIcon, ActivityIcon, BarChart3Icon, FishIcon } from 'lucide-react'
 
 interface MarketChartDataPoint {
   date: string
@@ -37,6 +39,13 @@ interface MarketChartDataPoint {
   marketCap: number
   volume: number
   volMcRatio: number
+}
+
+interface ProcessedDataPoint extends MarketChartDataPoint {
+  sma20Volume: number | null
+  priceChangePct: number | null
+  isAnomaly: boolean
+  volumeRatio: number | null // Volume / SMA_20_Volume
 }
 
 interface CoinChartModalProps {
@@ -57,6 +66,14 @@ const CHART_COLORS = {
   volume: '#8b5cf6', // violet-500
   marketCap: '#10b981', // emerald-500
   volMcRatio: '#f59e0b', // amber-500
+  whaleSignal: '#ef4444', // red-500 - whale footprint signal
+}
+
+// Whale detection algorithm parameters
+const WHALE_DETECTION_CONFIG = {
+  SMA_PERIOD: 20, // 20-day Simple Moving Average
+  VOLUME_SPIKE_THRESHOLD: 4, // Volume > 4x SMA_20_Volume
+  PRICE_CHANGE_THRESHOLD: 5, // |Price Change| < 5%
 }
 
 export function CoinChartModal({
@@ -73,6 +90,7 @@ export function CoinChartModal({
   const [error, setError] = useState<string | null>(null)
   const [chartType, setChartType] = useState<ChartType>('price-volume')
   const [timeRange, setTimeRange] = useState<number>(180) // days
+  const [showWhaleSignals, setShowWhaleSignals] = useState(true) // Toggle whale detection
 
   useEffect(() => {
     if (isOpen && coinId) {
@@ -106,6 +124,67 @@ export function CoinChartModal({
     const cutoffDate = Date.now() - timeRange * 24 * 60 * 60 * 1000
     return chartData.filter((d) => d.timestamp >= cutoffDate)
   }, [chartData, timeRange])
+
+  // Process data with whale detection algorithm
+  const processedData = useMemo((): ProcessedDataPoint[] => {
+    if (!filteredData.length) return []
+
+    const { SMA_PERIOD, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD } = WHALE_DETECTION_CONFIG
+
+    return filteredData.map((point, index, arr) => {
+      // Calculate SMA_20_Volume (need at least SMA_PERIOD data points)
+      let sma20Volume: number | null = null
+      if (index >= SMA_PERIOD - 1) {
+        const volumeSum = arr
+          .slice(index - SMA_PERIOD + 1, index + 1)
+          .reduce((sum, p) => sum + p.volume, 0)
+        sma20Volume = volumeSum / SMA_PERIOD
+      }
+
+      // Calculate Price Change Percentage (compared to previous day)
+      let priceChangePct: number | null = null
+      if (index > 0) {
+        const prevPrice = arr[index - 1].price
+        priceChangePct = ((point.price - prevPrice) / prevPrice) * 100
+      }
+
+      // Calculate volume ratio
+      const volumeRatio = sma20Volume ? point.volume / sma20Volume : null
+
+      // Detect anomaly (whale footprint)
+      // Condition 1: Volume > 4x SMA_20_Volume
+      // Condition 2: |Price Change| < 5% (price stays relatively flat)
+      const isAnomaly =
+        sma20Volume !== null &&
+        priceChangePct !== null &&
+        point.volume > VOLUME_SPIKE_THRESHOLD * sma20Volume &&
+        Math.abs(priceChangePct) < PRICE_CHANGE_THRESHOLD
+
+      return {
+        ...point,
+        sma20Volume,
+        priceChangePct,
+        volumeRatio,
+        isAnomaly,
+      }
+    })
+  }, [filteredData])
+
+  // Extract anomaly points for scatter plot
+  const whaleSignalData = useMemo(() => {
+    return processedData
+      .filter((d) => d.isAnomaly)
+      .map((d) => ({
+        date: d.date,
+        price: d.price,
+        volume: d.volume,
+        volumeRatio: d.volumeRatio,
+        priceChangePct: d.priceChangePct,
+      }))
+  }, [processedData])
+
+  // Count whale signals
+  const whaleSignalCount = whaleSignalData.length
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -250,11 +329,32 @@ export function CoinChartModal({
               </Button>
             ))}
           </div>
+
+          {/* Whale Detection Toggle */}
+          <Button
+            variant={showWhaleSignals ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowWhaleSignals(!showWhaleSignals)}
+            className="gap-1.5"
+            title="Toggle Whale Footprint Detection"
+          >
+            <FishIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Whale Signals</span>
+            {whaleSignalCount > 0 && (
+              <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                showWhaleSignals 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-red-500/20 text-red-600 dark:text-red-400'
+              }`}>
+                {whaleSignalCount}
+              </span>
+            )}
+          </Button>
         </div>
 
         {/* Stats Bar */}
         {stats && !loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Change ({timeRange}D)</p>
               <p
@@ -285,10 +385,19 @@ export function CoinChartModal({
                 {formatVolume(stats.avgVolume)}
               </p>
             </div>
-            <div className="bg-muted/30 rounded-lg p-3 col-span-2 sm:col-span-1">
+            <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Avg Vol/MC</p>
               <p className="text-sm font-semibold text-foreground">
                 {stats.avgVolMcRatio.toFixed(4)}
+              </p>
+            </div>
+            <div className={`rounded-lg p-3 ${whaleSignalCount > 0 ? 'bg-red-500/10 border border-red-500/30' : 'bg-muted/30'}`}>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <FishIcon className="h-3 w-3" />
+                Whale Signals
+              </p>
+              <p className={`text-sm font-semibold ${whaleSignalCount > 0 ? 'text-red-500' : 'text-foreground'}`}>
+                {whaleSignalCount} detected
               </p>
             </div>
           </div>
@@ -316,7 +425,7 @@ export function CoinChartModal({
           ) : chartType === 'price-volume' ? (
             <ChartContainer config={priceVolumeConfig} className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <ComposedChart data={processedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={CHART_COLORS.price} stopOpacity={0.3} />
@@ -353,25 +462,59 @@ export function CoinChartModal({
                   <ChartTooltip
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null
+                      const dataPoint = payload[0]?.payload as ProcessedDataPoint | undefined
                       return (
                         <div className="rounded-lg border bg-background p-3 shadow-md">
                           <p className="text-sm font-medium text-foreground mb-2">{label}</p>
-                          {payload.map((entry, index) => (
-                            <div key={index} className="flex items-center gap-2 text-sm">
-                              <div
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: entry.color }}
-                              />
-                              <span className="text-muted-foreground">
-                                {entry.name === 'Price' ? 'Price:' : 'Volume:'}
-                              </span>
+                          {payload.map((entry, index) => {
+                            if (entry.dataKey === 'isAnomaly') return null
+                            return (
+                              <div key={index} className="flex items-center gap-2 text-sm">
+                                <div
+                                  className="h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-muted-foreground">
+                                  {entry.name === 'Price' ? 'Price:' : 'Volume:'}
+                                </span>
+                                <span className="font-medium text-foreground">
+                                  {entry.name === 'Price'
+                                    ? formatPrice(entry.value as number)
+                                    : formatVolume(entry.value as number)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                          {dataPoint?.sma20Volume && (
+                            <div className="flex items-center gap-2 text-sm mt-1 pt-1 border-t border-border/40">
+                              <span className="text-muted-foreground">SMA20 Vol:</span>
                               <span className="font-medium text-foreground">
-                                {entry.name === 'Price'
-                                  ? formatPrice(entry.value as number)
-                                  : formatVolume(entry.value as number)}
+                                {formatVolume(dataPoint.sma20Volume)}
                               </span>
                             </div>
-                          ))}
+                          )}
+                          {dataPoint?.volumeRatio && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">Vol Ratio:</span>
+                              <span className={`font-medium ${dataPoint.volumeRatio >= WHALE_DETECTION_CONFIG.VOLUME_SPIKE_THRESHOLD ? 'text-red-500' : 'text-foreground'}`}>
+                                {dataPoint.volumeRatio.toFixed(2)}x
+                              </span>
+                            </div>
+                          )}
+                          {dataPoint?.priceChangePct !== null && dataPoint?.priceChangePct !== undefined && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">Price Change:</span>
+                              <span className={`font-medium ${dataPoint.priceChangePct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {dataPoint.priceChangePct >= 0 ? '+' : ''}{dataPoint.priceChangePct.toFixed(2)}%
+                              </span>
+                            </div>
+                          )}
+                          {dataPoint?.isAnomaly && (
+                            <div className="flex items-center gap-2 text-sm mt-1 pt-1 border-t border-border/40">
+                              <FishIcon className="h-3.5 w-3.5 text-red-500" />
+                              <span className="font-semibold text-red-500">Whale Signal Detected!</span>
+                            </div>
+                          )}
                         </div>
                       )
                     }}
@@ -393,6 +536,49 @@ export function CoinChartModal({
                     fill="url(#priceGradient)"
                     name="Price"
                   />
+                  {/* Whale Signal Markers */}
+                  {showWhaleSignals && (
+                    <Scatter
+                      yAxisId="price"
+                      data={whaleSignalData}
+                      fill={CHART_COLORS.whaleSignal}
+                      name="Whale Signal"
+                      shape={(props: { cx?: number; cy?: number }) => {
+                        const { cx, cy } = props
+                        if (cx === undefined || cy === undefined) return null
+                        return (
+                          <g>
+                            {/* Outer pulse circle */}
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={12}
+                              fill={CHART_COLORS.whaleSignal}
+                              fillOpacity={0.2}
+                            />
+                            {/* Inner circle */}
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={6}
+                              fill={CHART_COLORS.whaleSignal}
+                              stroke="#fff"
+                              strokeWidth={2}
+                            />
+                            {/* Fish icon indicator */}
+                            <text
+                              x={cx}
+                              y={cy - 18}
+                              textAnchor="middle"
+                              fontSize={14}
+                            >
+                              🐋
+                            </text>
+                          </g>
+                        )
+                      }}
+                    />
+                  )}
                   <Brush
                     dataKey="date"
                     height={30}
@@ -405,7 +591,7 @@ export function CoinChartModal({
           ) : (
             <ChartContainer config={marketCapConfig} className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <ComposedChart data={processedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="mcGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={CHART_COLORS.marketCap} stopOpacity={0.3} />
