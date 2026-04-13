@@ -26,7 +26,7 @@ interface TransformedCoin extends CoinGeckoMarketData {
 const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/coins/markets'
 const API_KEY = process.env.COINGECKO_API_KEY
 const PAGES = 2
-const PER_PAGE = 250
+const PER_PAGE = 100
 const REQUEST_DELAY_MS = 1500
 const MAX_RETRIES = 3
 const CATEGORY = 'binance-alpha-spotlight'
@@ -90,12 +90,20 @@ function transformCoin(coin: CoinGeckoMarketData): TransformedCoin {
 
 export async function GET() {
   try {
+    console.log(`[v0] Alpha API starting - fetching ${PAGES} pages with ${PER_PAGE} per page`)
     const pagesData: CoinGeckoMarketData[][] = []
 
     for (let i = 0; i < PAGES; i++) {
       const pageNum = i + 1
       try {
+        console.log(`[v0] Alpha fetching page ${pageNum}...`)
         const pageData = await fetchCoinsPage(pageNum)
+        console.log(`[v0] Alpha page ${pageNum} returned ${pageData.length} coins`)
+        if (pageData.length > 0) {
+          console.log(`[v0] First coin on page ${pageNum}:`, pageData[0]?.name, pageData[0]?.symbol)
+        } else {
+          console.log(`[v0] Alpha page ${pageNum} is EMPTY`)
+        }
         pagesData.push(pageData)
 
         if (i < PAGES - 1) {
