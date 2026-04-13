@@ -155,10 +155,15 @@ export function CoinTracker() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [selectedCoin, setSelectedCoin] = useState<Coin | null>(null)
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [nextUpdateIn, setNextUpdateIn] = useState<number>(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Cache: track if each tab has been fetched at least once
   const hasFetchedAll = useRef(false)
   const hasFetchedAlpha = useRef(false)
+  
+  const AUTO_REFRESH_INTERVAL = 60 * 60 * 1000 // 1 hour in milliseconds
 
   const getState = (tab: TabId) => (tab === 'all' ? allState : alphaState)
   const setState = (tab: TabId, updater: (prev: TabState) => TabState) => {
@@ -203,6 +208,9 @@ export function CoinTracker() {
 
         if (tab === 'all') hasFetchedAll.current = true
         else hasFetchedAlpha.current = true
+        
+        setLastUpdated(new Date())
+        setNextUpdateIn(AUTO_REFRESH_INTERVAL)
       } catch (err) {
         retries++
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch coins'
@@ -224,12 +232,24 @@ export function CoinTracker() {
     await attemptFetch()
   }, [])
 
-  // Fetch "all" tab on mount
+  // Fetch "all" tab on mount and auto-refresh every hour
   useEffect(() => {
     loadCoins('all')
-    const interval = setInterval(() => loadCoins('all', true), 60000)
+    const interval = setInterval(() => {
+      loadCoins('all', true)
+      if (hasFetchedAlpha.current) loadCoins('alpha', true)
+    }, AUTO_REFRESH_INTERVAL)
     return () => clearInterval(interval)
   }, [loadCoins])
+  
+  // Countdown timer for next update
+  useEffect(() => {
+    if (nextUpdateIn <= 0) return
+    const timer = setInterval(() => {
+      setNextUpdateIn((prev) => Math.max(0, prev - 1000))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [nextUpdateIn])
 
   // Fetch "alpha" tab only when first switched to
   useEffect(() => {
@@ -244,6 +264,26 @@ export function CoinTracker() {
     loadCoins('all', true)
     if (hasFetchedAlpha.current) loadCoins('alpha', true)
   }, [loadCoins])
+  
+  // Manual refresh all data
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await Promise.all([
+        loadCoins('all', true),
+        hasFetchedAlpha.current ? loadCoins('alpha', true) : Promise.resolve()
+      ])
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [loadCoins])
+  
+  // Format countdown time
+  const formatCountdown = (ms: number) => {
+    const minutes = Math.floor(ms / 60000)
+    const seconds = Math.floor((ms % 60000) / 1000)
+    return `${minutes}m ${seconds.toString().padStart(2, '0')}s`
+  }
 
   const handleCoinClick = useCallback((coin: Coin) => {
     setSelectedCoin(coin)
@@ -408,12 +448,12 @@ export function CoinTracker() {
                   {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
                 </button>
                 <button
-                  onClick={() => loadCoins(activeTab, true)}
-                  disabled={s.loading}
+                  onClick={handleManualRefresh}
+                  disabled={s.loading || isRefreshing}
                   className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-                  title="Refresh data"
+                  title="Refresh all data"
                 >
-                  <RefreshCwIcon className={`h-5 w-5 ${s.loading ? 'animate-spin' : ''}`} />
+                  <RefreshCwIcon className={`h-5 w-5 ${s.loading || isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
                 <ApiSettings onApiKeyChange={handleApiKeyChange} />
               </div>
@@ -447,12 +487,12 @@ export function CoinTracker() {
                   {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
                 </button>
                 <button
-                  onClick={() => loadCoins(activeTab, true)}
-                  disabled={s.loading}
+                  onClick={handleManualRefresh}
+                  disabled={s.loading || isRefreshing}
                   className="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-                  title="Refresh data"
+                  title="Refresh all data"
                 >
-                  <RefreshCwIcon className={`h-5 w-5 ${s.loading ? 'animate-spin' : ''}`} />
+                  <RefreshCwIcon className={`h-5 w-5 ${s.loading || isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
                 <ApiSettings onApiKeyChange={handleApiKeyChange} />
               </div>
@@ -486,6 +526,30 @@ export function CoinTracker() {
                 NEW
               </span>
             </button>
+            
+            {/* Update Status */}
+            <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
+              {lastUpdated && (
+                <span className="hidden sm:inline">
+                  Updated: {lastUpdated.toLocaleTimeString()}
+                </span>
+              )}
+              {nextUpdateIn > 0 && (
+                <span className="hidden md:inline">
+                  Next update in: {formatCountdown(nextUpdateIn)}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualRefresh}
+                disabled={s.loading || isRefreshing}
+                className="h-7 px-2 text-xs gap-1.5"
+              >
+                <RefreshCwIcon className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
