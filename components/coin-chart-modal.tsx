@@ -536,8 +536,8 @@ export function CoinChartModal({
                     fill="url(#priceGradient)"
                     name="Price"
                   />
-                  {/* Whale Signal Markers */}
-                  {showWhaleSignals && (
+                  {/* Whale Signal Markers - only show when there are actual whale signals */}
+                  {showWhaleSignals && whaleSignalCount > 0 && (
                     <Scatter
                       yAxisId="price"
                       data={whaleSignalData}
