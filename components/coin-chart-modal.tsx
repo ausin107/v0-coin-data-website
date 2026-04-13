@@ -72,8 +72,8 @@ const CHART_COLORS = {
 // Whale detection algorithm parameters
 const WHALE_DETECTION_CONFIG = {
   SMA_PERIOD: 20, // 20-day Simple Moving Average
-  VOLUME_SPIKE_THRESHOLD: 4, // Volume > 4x SMA_20_Volume
-  PRICE_CHANGE_THRESHOLD: 5, // |Price Change| < 5%
+  VOLUME_SPIKE_THRESHOLD: 2.5, // Volume > 4x SMA_20_Volume
+  PRICE_CHANGE_THRESHOLD: 7, // |Price Change| < 5%
 }
 
 export function CoinChartModal({
@@ -341,11 +341,10 @@ export function CoinChartModal({
             <FishIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Whale Signals</span>
             {whaleSignalCount > 0 && (
-              <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                showWhaleSignals 
-                  ? 'bg-white/20 text-white' 
-                  : 'bg-red-500/20 text-red-600 dark:text-red-400'
-              }`}>
+              <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${showWhaleSignals
+                ? 'bg-white/20 text-white'
+                : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                }`}>
                 {whaleSignalCount}
               </span>
             )}
@@ -359,8 +358,8 @@ export function CoinChartModal({
               <p className="text-xs text-muted-foreground">Change ({timeRange}D)</p>
               <p
                 className={`text-sm font-semibold ${stats.priceChange >= 0
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
                   }`}
               >
                 {stats.priceChange >= 0 ? '+' : ''}
@@ -552,7 +551,7 @@ export function CoinChartModal({
                             {/* Outer pulse circle */}
                             <circle
                               cx={cx}
-                              cy={cy}
+                              cy={cy + 12}
                               r={12}
                               fill={CHART_COLORS.whaleSignal}
                               fillOpacity={0.2}
@@ -560,21 +559,12 @@ export function CoinChartModal({
                             {/* Inner circle */}
                             <circle
                               cx={cx}
-                              cy={cy}
+                              cy={cy + 12}
                               r={6}
                               fill={CHART_COLORS.whaleSignal}
                               stroke="#fff"
                               strokeWidth={2}
                             />
-                            {/* Fish icon indicator */}
-                            <text
-                              x={cx}
-                              y={cy - 18}
-                              textAnchor="middle"
-                              fontSize={14}
-                            >
-                              🐋
-                            </text>
                           </g>
                         )
                       }}
