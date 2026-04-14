@@ -46,6 +46,14 @@ interface ProcessedDataPoint extends MarketChartDataPoint {
   priceChangePct: number | null
   isAnomaly: boolean
   volumeRatio: number | null // Volume / SMA_20_Volume
+  // Pump Signal Indicators
+  vExhaust: boolean // Volume exhaustion signal
+  pSqueeze: boolean // Price squeeze signal
+  whaleAcc: boolean // Whale accumulation signal
+  vmcRatioSpike: boolean // V/MC ratio spike signal
+  cooldown: boolean // Cooldown after whale accumulation
+  pumpScore: number // Total pump score (0-100)
+  pumpLevel: 'low' | 'medium' | 'high' // Pump level classification
 }
 
 interface CoinChartModalProps {
@@ -67,13 +75,28 @@ const CHART_COLORS = {
   marketCap: '#10b981', // emerald-500
   volMcRatio: '#f59e0b', // amber-500
   whaleSignal: '#ef4444', // red-500 - whale footprint signal
+  // Pump level colors
+  pumpLow: '#22c55e', // green-500 - Low pump probability (0-35)
+  pumpMedium: '#eab308', // yellow-500 - Medium pump probability (36-65)
+  pumpHigh: '#ef4444', // red-500 - High pump probability (66-100)
 }
 
-// Whale detection algorithm parameters
-const WHALE_DETECTION_CONFIG = {
-  SMA_PERIOD: 20, // 20-day Simple Moving Average
-  VOLUME_SPIKE_THRESHOLD: 2.5, // Volume > 4x SMA_20_Volume
-  PRICE_CHANGE_THRESHOLD: 7, // |Price Change| < 5%
+// Pump signal detection algorithm parameters
+const PUMP_DETECTION_CONFIG = {
+  SMA_PERIOD: 20, // 20-day Simple Moving Average for volume
+  // V_Exhaust: Volume exhaustion detection
+  V_EXHAUST_THRESHOLD: 0.3, // Volume < 30% of SMA20_Volume
+  // P_Squeeze: Price squeeze detection
+  P_SQUEEZE_PERIOD: 10, // Number of periods to check for price squeeze
+  P_SQUEEZE_THRESHOLD: 6, // Price volatility < 6%
+  // Whale_Acc: Whale accumulation detection  
+  WHALE_VOLUME_SPIKE: 3, // Volume > 3x SMA20_Volume
+  WHALE_PRICE_CHANGE_MAX: 10, // |Price Change| < 10%
+  // V/MC Ratio spike
+  VMC_RATIO_SPIKE: 0.15, // V/MC Ratio > 15% (0.15)
+  // Scoring thresholds
+  SCORE_LOW_MAX: 35,
+  SCORE_MEDIUM_MAX: 65,
 }
 
 export function CoinChartModal({
@@ -125,14 +148,25 @@ export function CoinChartModal({
     return chartData.filter((d) => d.timestamp >= cutoffDate)
   }, [chartData, timeRange])
 
-  // Process data with whale detection algorithm
+  // Process data with pump signal detection algorithm
   const processedData = useMemo((): ProcessedDataPoint[] => {
     if (!filteredData.length) return []
 
-    const { SMA_PERIOD, VOLUME_SPIKE_THRESHOLD, PRICE_CHANGE_THRESHOLD } = WHALE_DETECTION_CONFIG
+    const {
+      SMA_PERIOD,
+      V_EXHAUST_THRESHOLD,
+      P_SQUEEZE_PERIOD,
+      P_SQUEEZE_THRESHOLD,
+      WHALE_VOLUME_SPIKE,
+      WHALE_PRICE_CHANGE_MAX,
+      VMC_RATIO_SPIKE,
+      SCORE_LOW_MAX,
+      SCORE_MEDIUM_MAX,
+    } = PUMP_DETECTION_CONFIG
 
-    return filteredData.map((point, index, arr) => {
-      // Calculate SMA_20_Volume (need at least SMA_PERIOD data points)
+    // First pass: calculate basic indicators
+    const intermediateData = filteredData.map((point, index, arr) => {
+      // Calculate SMA_20_Volume
       let sma20Volume: number | null = null
       if (index >= SMA_PERIOD - 1) {
         const volumeSum = arr
@@ -151,27 +185,118 @@ export function CoinChartModal({
       // Calculate volume ratio
       const volumeRatio = sma20Volume ? point.volume / sma20Volume : null
 
-      // Detect anomaly (whale footprint)
-      // Condition 1: Volume > 4x SMA_20_Volume
-      // Condition 2: |Price Change| < 5% (price stays relatively flat)
-      const isAnomaly =
-        sma20Volume !== null &&
-        priceChangePct !== null &&
-        point.volume > VOLUME_SPIKE_THRESHOLD * sma20Volume &&
-        Math.abs(priceChangePct) < PRICE_CHANGE_THRESHOLD
+      // Calculate price range for P_Squeeze (volatility over P_SQUEEZE_PERIOD)
+      let priceVolatility: number | null = null
+      if (index >= P_SQUEEZE_PERIOD - 1) {
+        const priceSlice = arr.slice(index - P_SQUEEZE_PERIOD + 1, index + 1)
+        const highPrice = Math.max(...priceSlice.map(p => p.price))
+        const lowPrice = Math.min(...priceSlice.map(p => p.price))
+        priceVolatility = ((highPrice - lowPrice) / lowPrice) * 100
+      }
 
       return {
         ...point,
         sma20Volume,
         priceChangePct,
         volumeRatio,
+        priceVolatility,
+      }
+    })
+
+    // Second pass: calculate signals and scores
+    return intermediateData.map((point, index, arr) => {
+      const { sma20Volume, priceChangePct, volumeRatio, priceVolatility } = point
+
+      // Signal 1: V_Exhaust - Volume exhaustion (Volume < 30% of SMA20)
+      const vExhaust = sma20Volume !== null && point.volume < V_EXHAUST_THRESHOLD * sma20Volume
+
+      // Signal 2: P_Squeeze - Price squeeze (volatility < 6%)
+      const pSqueeze = priceVolatility !== null && priceVolatility < P_SQUEEZE_THRESHOLD
+
+      // Signal 3: Whale_Acc - Whale accumulation (Volume > 3x SMA20 AND |Price Change| < 10%)
+      const whaleAcc =
+        sma20Volume !== null &&
+        priceChangePct !== null &&
+        point.volume > WHALE_VOLUME_SPIKE * sma20Volume &&
+        Math.abs(priceChangePct) < WHALE_PRICE_CHANGE_MAX
+
+      // Signal 4: V/MC Ratio spike (> 15%)
+      const vmcRatioSpike = point.volMcRatio > VMC_RATIO_SPIKE
+
+      // Signal 5: Cooldown - Volume drops after whale accumulation
+      let cooldown = false
+      if (index > 0) {
+        const prevPoint = arr[index - 1]
+        // Check if previous point had whale accumulation and current volume is low
+        const prevWhaleAcc =
+          prevPoint.sma20Volume !== null &&
+          prevPoint.priceChangePct !== null &&
+          filteredData[index - 1].volume > WHALE_VOLUME_SPIKE * prevPoint.sma20Volume &&
+          Math.abs(prevPoint.priceChangePct) < WHALE_PRICE_CHANGE_MAX
+        cooldown = prevWhaleAcc && vExhaust
+      }
+
+      // Check for sustained P_Squeeze (10+ periods)
+      let sustainedPSqueeze = false
+      if (index >= P_SQUEEZE_PERIOD) {
+        const recentPoints = arr.slice(index - P_SQUEEZE_PERIOD, index + 1)
+        sustainedPSqueeze = recentPoints.every(p => p.priceVolatility !== null && p.priceVolatility < P_SQUEEZE_THRESHOLD)
+      }
+
+      // Check for sustained V_Exhaust
+      let sustainedVExhaust = false
+      if (index >= 3) {
+        const recentPoints = arr.slice(index - 2, index + 1)
+        sustainedVExhaust = recentPoints.every(p => 
+          p.sma20Volume !== null && filteredData[arr.indexOf(p)].volume < V_EXHAUST_THRESHOLD * p.sma20Volume
+        )
+      }
+
+      // Calculate Pump Score (0-100)
+      let pumpScore = 0
+      
+      // Signal 1: Sustained P_Squeeze (+20 points)
+      if (sustainedPSqueeze) pumpScore += 20
+      
+      // Signal 2: Sustained V_Exhaust (+20 points)
+      if (sustainedVExhaust) pumpScore += 20
+      
+      // Signal 3: Whale_Acc (+30 points)
+      if (whaleAcc) pumpScore += 30
+      
+      // Signal 4: V/MC Ratio spike during squeeze (+15 points)
+      if (vmcRatioSpike && pSqueeze) pumpScore += 15
+      
+      // Signal 5: Cooldown after whale accumulation (+15 points)
+      if (cooldown) pumpScore += 15
+
+      // Determine pump level
+      let pumpLevel: 'low' | 'medium' | 'high' = 'low'
+      if (pumpScore > SCORE_MEDIUM_MAX) {
+        pumpLevel = 'high'
+      } else if (pumpScore > SCORE_LOW_MAX) {
+        pumpLevel = 'medium'
+      }
+
+      // isAnomaly = any significant signal detected
+      const isAnomaly = pumpScore > SCORE_LOW_MAX
+
+      return {
+        ...point,
+        vExhaust,
+        pSqueeze,
+        whaleAcc,
+        vmcRatioSpike,
+        cooldown,
+        pumpScore,
+        pumpLevel,
         isAnomaly,
       }
     })
   }, [filteredData])
 
-  // Extract anomaly points for scatter plot
-  const whaleSignalData = useMemo(() => {
+  // Extract pump signal points for scatter plot
+  const pumpSignalData = useMemo(() => {
     return processedData
       .filter((d) => d.isAnomaly)
       .map((d) => ({
@@ -180,11 +305,24 @@ export function CoinChartModal({
         volume: d.volume,
         volumeRatio: d.volumeRatio,
         priceChangePct: d.priceChangePct,
+        pumpScore: d.pumpScore,
+        pumpLevel: d.pumpLevel,
       }))
   }, [processedData])
 
-  // Count whale signals
-  const whaleSignalCount = whaleSignalData.length
+  // Count pump signals by level
+  const pumpSignalCounts = useMemo(() => {
+    const counts = { low: 0, medium: 0, high: 0, total: 0 }
+    processedData.forEach((d) => {
+      if (d.pumpLevel === 'medium') counts.medium++
+      if (d.pumpLevel === 'high') counts.high++
+    })
+    counts.total = counts.medium + counts.high
+    return counts
+  }, [processedData])
+
+  // For backward compatibility
+  const whaleSignalCount = pumpSignalCounts.total
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -330,22 +468,28 @@ export function CoinChartModal({
             ))}
           </div>
 
-          {/* Whale Detection Toggle */}
+          {/* Pump Signal Detection Toggle */}
           <Button
             variant={showWhaleSignals ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowWhaleSignals(!showWhaleSignals)}
             className="gap-1.5"
-            title="Toggle Whale Footprint Detection"
+            title="Toggle Pump Signal Detection"
           >
-            <FishIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Whale Signals</span>
+            <ActivityIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Pump Signals</span>
             {whaleSignalCount > 0 && (
-              <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${showWhaleSignals
-                ? 'bg-white/20 text-white'
-                : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                }`}>
-                {whaleSignalCount}
+              <span className="inline-flex items-center gap-1">
+                {pumpSignalCounts.high > 0 && (
+                  <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/20 text-red-600 dark:text-red-400">
+                    {pumpSignalCounts.high}
+                  </span>
+                )}
+                {pumpSignalCounts.medium > 0 && (
+                  <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-500/20 text-yellow-600 dark:text-yellow-400">
+                    {pumpSignalCounts.medium}
+                  </span>
+                )}
               </span>
             )}
           </Button>
@@ -390,14 +534,26 @@ export function CoinChartModal({
                 {stats.avgVolMcRatio.toFixed(4)}
               </p>
             </div>
-            <div className={`rounded-lg p-3 ${whaleSignalCount > 0 ? 'bg-red-500/10 border border-red-500/30' : 'bg-muted/30'}`}>
+            <div className={`rounded-lg p-3 col-span-2 sm:col-span-1 ${whaleSignalCount > 0 ? 'bg-gradient-to-r from-yellow-500/10 to-red-500/10 border border-orange-500/30' : 'bg-muted/30'}`}>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <FishIcon className="h-3 w-3" />
-                Whale Signals
+                <ActivityIcon className="h-3 w-3" />
+                Pump Signals
               </p>
-              <p className={`text-sm font-semibold ${whaleSignalCount > 0 ? 'text-red-500' : 'text-foreground'}`}>
-                {whaleSignalCount} detected
-              </p>
+              <div className="flex items-center gap-2">
+                {pumpSignalCounts.high > 0 && (
+                  <span className="text-sm font-semibold text-red-500">
+                    {pumpSignalCounts.high} High
+                  </span>
+                )}
+                {pumpSignalCounts.medium > 0 && (
+                  <span className="text-sm font-semibold text-yellow-500">
+                    {pumpSignalCounts.medium} Med
+                  </span>
+                )}
+                {whaleSignalCount === 0 && (
+                  <span className="text-sm font-semibold text-foreground">None</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -495,7 +651,7 @@ export function CoinChartModal({
                           {dataPoint?.volumeRatio && (
                             <div className="flex items-center gap-2 text-sm">
                               <span className="text-muted-foreground">Vol Ratio:</span>
-                              <span className={`font-medium ${dataPoint.volumeRatio >= WHALE_DETECTION_CONFIG.VOLUME_SPIKE_THRESHOLD ? 'text-red-500' : 'text-foreground'}`}>
+                              <span className={`font-medium ${dataPoint.volumeRatio >= PUMP_DETECTION_CONFIG.WHALE_VOLUME_SPIKE ? 'text-red-500' : 'text-foreground'}`}>
                                 {dataPoint.volumeRatio.toFixed(2)}x
                               </span>
                             </div>
@@ -508,10 +664,33 @@ export function CoinChartModal({
                               </span>
                             </div>
                           )}
-                          {dataPoint?.isAnomaly && (
-                            <div className="flex items-center gap-2 text-sm mt-1 pt-1 border-t border-border/40">
-                              <FishIcon className="h-3.5 w-3.5 text-red-500" />
-                              <span className="font-semibold text-red-500">Whale Signal Detected!</span>
+                          {/* Pump Score and Level Display */}
+                          {dataPoint && dataPoint.pumpScore > 0 && (
+                            <div className="mt-1 pt-1 border-t border-border/40 space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Pump Score:</span>
+                                <span className={`font-semibold ${
+                                  dataPoint.pumpLevel === 'high' ? 'text-red-500' : 
+                                  dataPoint.pumpLevel === 'medium' ? 'text-yellow-500' : 'text-green-500'
+                                }`}>
+                                  {dataPoint.pumpScore}/100
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 text-xs">
+                                {dataPoint.vExhaust && <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">V_Exhaust</span>}
+                                {dataPoint.pSqueeze && <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">P_Squeeze</span>}
+                                {dataPoint.whaleAcc && <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded">Whale_Acc</span>}
+                                {dataPoint.vmcRatioSpike && <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">V/MC Spike</span>}
+                                {dataPoint.cooldown && <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Cooldown</span>}
+                              </div>
+                              {dataPoint.pumpLevel !== 'low' && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <ActivityIcon className={`h-3.5 w-3.5 ${dataPoint.pumpLevel === 'high' ? 'text-red-500' : 'text-yellow-500'}`} />
+                                  <span className={`font-semibold ${dataPoint.pumpLevel === 'high' ? 'text-red-500' : 'text-yellow-500'}`}>
+                                    {dataPoint.pumpLevel === 'high' ? 'HIGH Pump Probability!' : 'Medium Pump Probability'}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -535,36 +714,61 @@ export function CoinChartModal({
                     fill="url(#priceGradient)"
                     name="Price"
                   />
-                  {/* Whale Signal Markers - only show when there are actual whale signals */}
+                  {/* Pump Signal Markers - colored by pump level */}
                   {showWhaleSignals && whaleSignalCount > 0 && (
                     <Scatter
                       yAxisId="price"
                       data={processedData}
-                      fill={CHART_COLORS.whaleSignal}
-                      name="Whale Signal"
+                      fill={CHART_COLORS.pumpHigh}
+                      name="Pump Signal"
                       shape={(props: { cx?: number; cy?: number; payload?: ProcessedDataPoint }) => {
                         const { cx, cy, payload } = props
-                        // Only render marker for anomaly points
+                        // Only render marker for anomaly points (medium or high pump level)
                         if (cx === undefined || cy === undefined || !payload?.isAnomaly) return null
+                        
+                        // Get color based on pump level
+                        const color = payload.pumpLevel === 'high' 
+                          ? CHART_COLORS.pumpHigh 
+                          : payload.pumpLevel === 'medium' 
+                            ? CHART_COLORS.pumpMedium 
+                            : CHART_COLORS.pumpLow
+                        
+                        // Size based on pump score
+                        const outerRadius = payload.pumpLevel === 'high' ? 14 : 10
+                        const innerRadius = payload.pumpLevel === 'high' ? 7 : 5
+                        
                         return (
                           <g>
                             {/* Outer pulse circle */}
                             <circle
                               cx={cx}
                               cy={cy + 12}
-                              r={12}
-                              fill={CHART_COLORS.whaleSignal}
-                              fillOpacity={0.2}
+                              r={outerRadius}
+                              fill={color}
+                              fillOpacity={0.3}
                             />
                             {/* Inner circle */}
                             <circle
                               cx={cx}
                               cy={cy + 12}
-                              r={6}
-                              fill={CHART_COLORS.whaleSignal}
+                              r={innerRadius}
+                              fill={color}
                               stroke="#fff"
                               strokeWidth={2}
                             />
+                            {/* Score label for high signals */}
+                            {payload.pumpLevel === 'high' && (
+                              <text
+                                x={cx}
+                                y={cy - 8}
+                                textAnchor="middle"
+                                fontSize={10}
+                                fontWeight="bold"
+                                fill={color}
+                              >
+                                {payload.pumpScore}
+                              </text>
+                            )}
                           </g>
                         )
                       }}
