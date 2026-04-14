@@ -314,10 +314,13 @@ export function CoinChartModal({
   const pumpSignalCounts = useMemo(() => {
     const counts = { low: 0, medium: 0, high: 0, total: 0 }
     processedData.forEach((d) => {
-      if (d.pumpLevel === 'medium') counts.medium++
-      if (d.pumpLevel === 'high') counts.high++
+      if (d.pumpScore > 0) {
+        if (d.pumpLevel === 'low') counts.low++
+        else if (d.pumpLevel === 'medium') counts.medium++
+        else if (d.pumpLevel === 'high') counts.high++
+      }
     })
-    counts.total = counts.medium + counts.high
+    counts.total = counts.low + counts.medium + counts.high
     return counts
   }, [processedData])
 
@@ -490,6 +493,11 @@ export function CoinChartModal({
                     {pumpSignalCounts.medium}
                   </span>
                 )}
+                {pumpSignalCounts.low > 0 && (
+                  <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 dark:text-green-400">
+                    {pumpSignalCounts.low}
+                  </span>
+                )}
               </span>
             )}
           </Button>
@@ -534,12 +542,12 @@ export function CoinChartModal({
                 {stats.avgVolMcRatio.toFixed(4)}
               </p>
             </div>
-            <div className={`rounded-lg p-3 col-span-2 sm:col-span-1 ${whaleSignalCount > 0 ? 'bg-gradient-to-r from-yellow-500/10 to-red-500/10 border border-orange-500/30' : 'bg-muted/30'}`}>
+            <div className={`rounded-lg p-3 col-span-2 sm:col-span-1 ${whaleSignalCount > 0 ? 'bg-gradient-to-r from-green-500/10 via-yellow-500/10 to-red-500/10 border border-orange-500/30' : 'bg-muted/30'}`}>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <ActivityIcon className="h-3 w-3" />
                 Pump Signals
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {pumpSignalCounts.high > 0 && (
                   <span className="text-sm font-semibold text-red-500">
                     {pumpSignalCounts.high} High
@@ -548,6 +556,11 @@ export function CoinChartModal({
                 {pumpSignalCounts.medium > 0 && (
                   <span className="text-sm font-semibold text-yellow-500">
                     {pumpSignalCounts.medium} Med
+                  </span>
+                )}
+                {pumpSignalCounts.low > 0 && (
+                  <span className="text-sm font-semibold text-green-500">
+                    {pumpSignalCounts.low} Low
                   </span>
                 )}
                 {whaleSignalCount === 0 && (
@@ -714,8 +727,8 @@ export function CoinChartModal({
                     fill="url(#priceGradient)"
                     name="Price"
                   />
-                  {/* Pump Signal Markers - colored by pump level */}
-                  {showWhaleSignals && whaleSignalCount > 0 && (
+                  {/* Pump Signal Markers - colored by pump level (green, yellow, red) */}
+                  {showWhaleSignals && (
                     <Scatter
                       yAxisId="price"
                       data={processedData}
@@ -723,8 +736,8 @@ export function CoinChartModal({
                       name="Pump Signal"
                       shape={(props: { cx?: number; cy?: number; payload?: ProcessedDataPoint }) => {
                         const { cx, cy, payload } = props
-                        // Only render marker for anomaly points (medium or high pump level)
-                        if (cx === undefined || cy === undefined || !payload?.isAnomaly) return null
+                        // Only render marker for points with pump score > 0
+                        if (cx === undefined || cy === undefined || !payload || payload.pumpScore === 0) return null
                         
                         // Get color based on pump level
                         const color = payload.pumpLevel === 'high' 
@@ -733,9 +746,9 @@ export function CoinChartModal({
                             ? CHART_COLORS.pumpMedium 
                             : CHART_COLORS.pumpLow
                         
-                        // Size based on pump score
-                        const outerRadius = payload.pumpLevel === 'high' ? 14 : 10
-                        const innerRadius = payload.pumpLevel === 'high' ? 7 : 5
+                        // Same size for all levels
+                        const outerRadius = 10
+                        const innerRadius = 5
                         
                         return (
                           <g>
@@ -756,19 +769,6 @@ export function CoinChartModal({
                               stroke="#fff"
                               strokeWidth={2}
                             />
-                            {/* Score label for high signals */}
-                            {payload.pumpLevel === 'high' && (
-                              <text
-                                x={cx}
-                                y={cy - 8}
-                                textAnchor="middle"
-                                fontSize={10}
-                                fontWeight="bold"
-                                fill={color}
-                              >
-                                {payload.pumpScore}
-                              </text>
-                            )}
                           </g>
                         )
                       }}
