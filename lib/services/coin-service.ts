@@ -1,3 +1,50 @@
+export interface FavoriteCoin {
+  id: string
+  symbol: string
+  name: string
+  image: string
+}
+
+/**
+ * Fetch live market data for a list of favorite coin ids from CoinGecko
+ */
+export async function fetchFavoriteCoins(ids: string[]): Promise<CoinData[]> {
+  if (!ids.length) return []
+  const idsParam = ids.join('%2C')
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${idsParam}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h%2C7d%2C14d%2C30d%2C200d`
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    next: { revalidate: 300 },
+  })
+  if (!response.ok) throw new Error(`CoinGecko error: ${response.status}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw: any[] = await response.json()
+  return raw.map((c) => ({
+    id: c.id,
+    symbol: c.symbol,
+    name: c.name,
+    image: c.image,
+    current_price: c.current_price,
+    market_cap: c.market_cap,
+    market_cap_rank: c.market_cap_rank,
+    price_change_percentage_24h: c.price_change_percentage_24h,
+    price_change_percentage_7d_in_currency: c.price_change_percentage_7d_in_currency,
+    price_change_percentage_14d_in_currency: c.price_change_percentage_14d_in_currency,
+    price_change_percentage_30d_in_currency: c.price_change_percentage_30d_in_currency,
+    price_change_percentage_200d_in_currency: c.price_change_percentage_200d_in_currency,
+    high_24h: c.high_24h,
+    low_24h: c.low_24h,
+    market_cap_change_percentage_24h: c.market_cap_change_percentage_24h,
+    total_volume: c.total_volume,
+    circulating_supply: c.circulating_supply,
+    max_supply: c.max_supply,
+    ath: c.ath,
+    atl: c.atl,
+    last_updated: c.last_updated,
+    volume_to_mc_ratio: c.market_cap > 0 ? c.total_volume / c.market_cap : 0,
+  }))
+}
+
 export interface CoinData {
   id: string
   symbol: string
