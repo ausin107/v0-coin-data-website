@@ -702,7 +702,7 @@ export function CoinChartModal({
                     fill="url(#priceGradient)"
                     name="Price"
                   />
-                  {/* Pump Signal Markers - colored by pump level (green, yellow, red) */}
+                  {/* Pump Signal Markers - only show medium (yellow) and high (red) */}
                   {showWhaleSignals && (
                     <Scatter
                       yAxisId="price"
@@ -711,15 +711,13 @@ export function CoinChartModal({
                       name="Pump Signal"
                       shape={(props: { cx?: number; cy?: number; payload?: ProcessedDataPoint }) => {
                         const { cx, cy, payload } = props
-                        // Only render marker for points with pump score > 0
-                        if (cx === undefined || cy === undefined || !payload || payload.pumpScore === 0) return null
+                        // Only render marker for medium or high pump levels (skip low/green)
+                        if (cx === undefined || cy === undefined || !payload || payload.pumpLevel === 'low') return null
                         
-                        // Get color based on pump level
+                        // Get color based on pump level (only medium or high)
                         const color = payload.pumpLevel === 'high' 
                           ? CHART_COLORS.pumpHigh 
-                          : payload.pumpLevel === 'medium' 
-                            ? CHART_COLORS.pumpMedium 
-                            : CHART_COLORS.pumpLow
+                          : CHART_COLORS.pumpMedium
                         
                         // Same size for all levels
                         const outerRadius = 10
