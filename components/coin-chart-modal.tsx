@@ -52,7 +52,7 @@ interface ProcessedDataPoint extends MarketChartDataPoint {
   whaleAcc: boolean // Whale accumulation signal
   vmcRatioSpike: boolean // V/MC ratio spike signal
   recentSignal: boolean // Signal appeared within last 15 days
-  pumpScore: number // Total pump score (0-150)
+  pumpScore: number // Total pump score (0-140)
   pumpLevel: 'low' | 'medium' | 'high' // Pump level classification
 }
 
@@ -97,9 +97,9 @@ const PUMP_DETECTION_CONFIG = {
   // Recent signal bonus: signal within last N days
   RECENT_SIGNAL_DAYS: 15,
   RECENT_SIGNAL_BONUS: 50,
-  // Scoring thresholds (max base score = 20+20+35+25 = 100, max total = 150)
-  SCORE_LOW_MAX: 35,
-  SCORE_MEDIUM_MAX: 70,
+  // Scoring thresholds (max base score = 20+20+30+20 = 90, max total = 140)
+  SCORE_LOW_MAX: 70,
+  SCORE_MEDIUM_MAX: 100,
 }
 
 export function CoinChartModal({
@@ -248,7 +248,7 @@ export function CoinChartModal({
           .every(p => p.sma20Volume !== null && p.volume < V_EXHAUST_THRESHOLD * p.sma20Volume)
       }
 
-      // Calculate base Pump Score (max 100)
+      // Calculate base Pump Score (max 140)
       let pumpScore = 0
 
       // Signal 1: Sustained P_Squeeze (+20 points)
@@ -257,18 +257,18 @@ export function CoinChartModal({
       // Signal 2: Sustained V_Exhaust (+20 points)
       if (sustainedVExhaust) pumpScore += 20
 
-      // Signal 3: Whale_Acc (+35 points)
-      if (whaleAcc) pumpScore += 35
+      // Signal 3: Whale_Acc (+30 points)
+      if (whaleAcc) pumpScore += 30
 
-      // Signal 4: V/MC Ratio spike (+25 points)
-      if (vmcRatioSpike) pumpScore += 25
+      // Signal 4: V/MC Ratio spike (+20 points)
+      if (vmcRatioSpike) pumpScore += 20
 
       // Bonus: +50 points if any signal appeared within the last 15 days
       const isRecent = point.timestamp >= recentCutoff
       const recentSignal = isRecent && pumpScore > 0
       if (recentSignal) pumpScore += RECENT_SIGNAL_BONUS
 
-      // Determine pump level (max possible score = 150)
+      // Determine pump level (max possible score = 140)
       let pumpLevel: 'low' | 'medium' | 'high' = 'low'
       if (pumpScore > SCORE_MEDIUM_MAX) {
         pumpLevel = 'high'
@@ -657,11 +657,10 @@ export function CoinChartModal({
                             <div className="mt-1 pt-1 border-t border-border/40 space-y-1">
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="text-muted-foreground">Pump Score:</span>
-                                <span className={`font-semibold ${
-                                  dataPoint.pumpLevel === 'high' ? 'text-red-500' : 
+                                <span className={`font-semibold ${dataPoint.pumpLevel === 'high' ? 'text-red-500' :
                                   dataPoint.pumpLevel === 'medium' ? 'text-yellow-500' : 'text-green-500'
-                                }`}>
-                                  {dataPoint.pumpScore}/100
+                                  }`}>
+                                  {dataPoint.pumpScore}/140
                                 </span>
                               </div>
                               <div className="flex flex-wrap gap-1 text-xs">
@@ -669,7 +668,7 @@ export function CoinChartModal({
                                 {dataPoint.pSqueeze && <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">P_Squeeze</span>}
                                 {dataPoint.whaleAcc && <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded">Whale_Acc</span>}
                                 {dataPoint.vmcRatioSpike && <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">V/MC Spike</span>}
-                                {dataPoint.recentSignal && <span className="px-1.5 py-0.5 bg-blue-600/20 text-blue-300 rounded">Recent +50</span>}
+                                {dataPoint.recentSignal && <span className="px-1.5 py-0.5 bg-blue-600/20 text-blue-300 rounded">Recent</span>}
                               </div>
                               {dataPoint.pumpLevel !== 'low' && (
                                 <div className="flex items-center gap-2 text-sm">
@@ -713,16 +712,16 @@ export function CoinChartModal({
                         const { cx, cy, payload } = props
                         // Only render marker for medium or high pump levels (skip low/green)
                         if (cx === undefined || cy === undefined || !payload || payload.pumpLevel === 'low') return null
-                        
+
                         // Get color based on pump level (only medium or high)
-                        const color = payload.pumpLevel === 'high' 
-                          ? CHART_COLORS.pumpHigh 
+                        const color = payload.pumpLevel === 'high'
+                          ? CHART_COLORS.pumpHigh
                           : CHART_COLORS.pumpMedium
-                        
+
                         // Same size for all levels
                         const outerRadius = 10
                         const innerRadius = 5
-                        
+
                         return (
                           <g>
                             {/* Outer pulse circle */}
