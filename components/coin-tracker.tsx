@@ -26,8 +26,9 @@ import {
   FilterIcon,
   XIcon,
   ChevronUpIcon,
+  StarIcon,
 } from 'lucide-react'
-import { fetchCoinsFromAPI, fetchAlphaCoinsFromAPI, type CoinData } from '@/lib/services/coin-service'
+import { fetchCoinsFromAPI, fetchAlphaCoinsFromAPI, fetchFavoriteCoins, type CoinData, type FavoriteCoin } from '@/lib/services/coin-service'
 import { ApiSettings } from '@/components/api-settings'
 import { CoinChartModal } from '@/components/coin-chart-modal'
 
@@ -74,7 +75,27 @@ function parseValueWithSuffix(value: string): number | null {
 }
 
 type Coin = CoinData
-type TabId = 'all' | 'alpha'
+type TabId = 'all' | 'alpha' | 'favorites'
+
+const FAVORITES_STORAGE_KEY = 'crypto_tracker_favorites'
+
+function loadFavoritesFromStorage(): FavoriteCoin[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as FavoriteCoin[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveFavoritesToStorage(favs: FavoriteCoin[]) {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favs))
+  } catch {
+    // ignore storage errors
+  }
+}
 
 type SortField =
   | 'price_change_percentage_24h'
@@ -152,6 +173,13 @@ export function CoinTracker() {
   const [allState, setAllState] = useState<TabState>(defaultTabState())
   const [alphaState, setAlphaState] = useState<TabState>(defaultTabState())
 
+  // Favorites
+  const [favorites, setFavorites] = useState<FavoriteCoin[]>([])
+  const [favCoins, setFavCoins] = useState<CoinData[]>([])
+  const [favLoading, setFavLoading] = useState(false)
+  const [favError, setFavError] = useState<string | null>(null)
+  const hasFetchedFavs = useRef(false)
+
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [selectedCoin, setSelectedCoin] = useState<Coin | null>(null)
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
@@ -165,20 +193,62 @@ export function CoinTracker() {
   
   const AUTO_REFRESH_INTERVAL = 60 * 60 * 1000 // 1 hour in milliseconds
 
-  const getState = (tab: TabId) => (tab === 'all' ? allState : alphaState)
+  const getState = (tab: TabId) => (tab === 'alpha' ? alphaState : allState)
   const setState = (tab: TabId, updater: (prev: TabState) => TabState) => {
-    if (tab === 'all') setAllState(updater)
-    else setAlphaState(updater)
+    if (tab === 'alpha') setAlphaState(updater)
+    else setAllState(updater)
   }
 
-  // Initialize dark mode
+  // Initialize dark mode + load favorites from storage
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark)
     setIsDarkMode(shouldBeDark)
     document.documentElement.classList.toggle('dark', shouldBeDark)
+    setFavorites(loadFavoritesFromStorage())
   }, [])
+
+  // Toggle a coin in favorites
+  const toggleFavorite = useCallback((coin: CoinData) => {
+    setFavorites((prev) => {
+      const exists = prev.some((f) => f.id === coin.id)
+      const next = exists
+        ? prev.filter((f) => f.id !== coin.id)
+        : [...prev, { id: coin.id, symbol: coin.symbol, name: coin.name, image: coin.image }]
+      saveFavoritesToStorage(next)
+      return next
+    })
+    // Reset fetch flag so favorites tab re-fetches fresh data
+    hasFetchedFavs.current = false
+  }, [])
+
+  const isFavorited = useCallback((coinId: string) => favorites.some((f) => f.id === coinId), [favorites])
+
+  // Fetch live data for favorites
+  const loadFavorites = useCallback(async (force = false) => {
+    if (hasFetchedFavs.current && !force) return
+    if (favorites.length === 0) { setFavCoins([]); return }
+    setFavLoading(true)
+    setFavError(null)
+    try {
+      const data = await fetchFavoriteCoins(favorites.map((f) => f.id))
+      setFavCoins(data)
+      hasFetchedFavs.current = true
+    } catch (err) {
+      setFavError(err instanceof Error ? err.message : 'Failed to load favorites')
+    } finally {
+      setFavLoading(false)
+    }
+  }, [favorites])
+
+  // Fetch favorites when tab is active or favorites list changes
+  useEffect(() => {
+    if (activeTab === 'favorites') {
+      hasFetchedFavs.current = false
+      loadFavorites()
+    }
+  }, [activeTab, favorites, loadFavorites])
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -271,12 +341,13 @@ export function CoinTracker() {
     try {
       await Promise.all([
         loadCoins('all', true),
-        hasFetchedAlpha.current ? loadCoins('alpha', true) : Promise.resolve()
+        hasFetchedAlpha.current ? loadCoins('alpha', true) : Promise.resolve(),
+        activeTab === 'favorites' ? loadFavorites(true) : Promise.resolve(),
       ])
     } finally {
       setIsRefreshing(false)
     }
-  }, [loadCoins])
+  }, [loadCoins, loadFavorites, activeTab])
   
   // Format countdown time
   const formatCountdown = (ms: number) => {
@@ -526,7 +597,23 @@ export function CoinTracker() {
                 NEW
               </span>
             </button>
-            
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'favorites'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <StarIcon className="h-3.5 w-3.5" />
+              <span>Favorites</span>
+              {favorites.length > 0 && (
+                <span className="inline-flex items-center justify-center rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  {favorites.length}
+                </span>
+              )}
+            </button>
+
             {/* Update Status */}
             <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
               {lastUpdated && (
@@ -670,6 +757,70 @@ export function CoinTracker() {
 
       {/* Table Content */}
       <div className="mx-auto max-w-8xl px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
+
+        {/* Favorites Tab Content */}
+        {activeTab === 'favorites' ? (
+          <div className="space-y-4">
+            {favError && (
+              <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
+                <p className="font-medium">Error loading favorites</p>
+                <p className="text-sm">{favError}</p>
+              </div>
+            )}
+            {favLoading ? (
+              <div className="flex h-96 items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <Spinner className="h-8 w-8 text-primary" />
+                  <p className="text-muted-foreground">Loading favorites...</p>
+                </div>
+              </div>
+            ) : favorites.length === 0 ? (
+              <div className="flex h-96 items-center justify-center">
+                <div className="text-center space-y-2">
+                  <StarIcon className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                  <p className="text-lg font-medium text-foreground">No favorites yet</p>
+                  <p className="text-sm text-muted-foreground">Click the star icon next to any coin to add it here.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border/40 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[1050px]">
+                    <TableHeader>
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableHead className="w-10"></TableHead>
+                        <TableHead className="w-12 text-center font-semibold">#</TableHead>
+                        <TableHead className="font-semibold">Name</TableHead>
+                        <TableHead className="text-right font-semibold">Price</TableHead>
+                        <TableHead className="text-right font-semibold">24h %</TableHead>
+                        <TableHead className="text-right font-semibold">7d %</TableHead>
+                        <TableHead className="text-right font-semibold">14d %</TableHead>
+                        <TableHead className="text-right font-semibold">30d %</TableHead>
+                        <TableHead className="text-right font-semibold">200d %</TableHead>
+                        <TableHead className="text-right font-semibold">Market Cap</TableHead>
+                        <TableHead className="text-right font-semibold">Volume (24h)</TableHead>
+                        <TableHead className="text-right font-semibold">Vol/MC</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {favCoins.map((coin, index) => (
+                        <CoinRow
+                          key={coin.id}
+                          coin={coin}
+                          index={index + 1}
+                          onCoinClick={handleCoinClick}
+                          isFavorited={isFavorited(coin.id)}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
         {s.error && (
           <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
             <p className="font-medium">Error loading coins</p>
@@ -701,7 +852,8 @@ export function CoinTracker() {
                 <Table className="min-w-[1050px]">
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="w-16 text-center font-semibold">#</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-12 text-center font-semibold">#</TableHead>
                       <TableHead className="font-semibold">Name</TableHead>
                       <TableHead className="text-right font-semibold">Price</TableHead>
                       <TableHead className="text-right font-semibold">
@@ -737,6 +889,8 @@ export function CoinTracker() {
                         coin={coin}
                         index={startIndex + index + 1}
                         onCoinClick={handleCoinClick}
+                        isFavorited={isFavorited(coin.id)}
+                        onToggleFavorite={toggleFavorite}
                       />
                     ))}
                   </TableBody>
@@ -793,6 +947,8 @@ export function CoinTracker() {
             Back to Top
           </Button>
         </div>
+          </>
+        )}
       </div>
 
       {/* Chart Modal */}
@@ -814,7 +970,19 @@ export function CoinTracker() {
   )
 }
 
-function CoinRow({ coin, index, onCoinClick }: { coin: Coin; index: number; onCoinClick: (coin: Coin) => void }) {
+function CoinRow({
+  coin,
+  index,
+  onCoinClick,
+  isFavorited = false,
+  onToggleFavorite,
+}: {
+  coin: Coin
+  index: number
+  onCoinClick: (coin: Coin) => void
+  isFavorited?: boolean
+  onToggleFavorite?: (coin: Coin) => void
+}) {
   const formatPercent = (value: number | undefined) => {
     if (value === undefined || value === null)
       return <span className="text-muted-foreground text-xs sm:text-sm">N/A</span>
@@ -837,6 +1005,16 @@ function CoinRow({ coin, index, onCoinClick }: { coin: Coin; index: number; onCo
 
   return (
     <TableRow className="hover:bg-muted/30">
+      {/* Star / Favorite button */}
+      <TableCell className="w-10 px-2">
+        <button
+          onClick={() => onToggleFavorite?.(coin)}
+          className={`p-1 rounded transition-colors ${isFavorited ? 'text-yellow-400 hover:text-yellow-300' : 'text-muted-foreground/30 hover:text-yellow-400'}`}
+          title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <StarIcon className={`h-4 w-4 ${isFavorited ? 'fill-yellow-400' : ''}`} />
+        </button>
+      </TableCell>
       <TableCell className="text-center font-medium text-muted-foreground text-xs sm:text-sm">{index}</TableCell>
       <TableCell className="min-w-[140px] sm:min-w-[180px]">
         <div className="flex items-center gap-2 sm:gap-3">

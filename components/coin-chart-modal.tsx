@@ -30,7 +30,7 @@ import {
   Scatter,
   ZAxis,
 } from 'recharts'
-import { TrendingUpIcon, TrendingDownIcon, ActivityIcon, BarChart3Icon, FishIcon } from 'lucide-react'
+import { TrendingUpIcon, ActivityIcon, BarChart3Icon } from 'lucide-react'
 
 interface MarketChartDataPoint {
   date: string
@@ -51,8 +51,8 @@ interface ProcessedDataPoint extends MarketChartDataPoint {
   pSqueeze: boolean // Price squeeze signal
   whaleAcc: boolean // Whale accumulation signal
   vmcRatioSpike: boolean // V/MC ratio spike signal
-  cooldown: boolean // Cooldown after whale accumulation
-  pumpScore: number // Total pump score (0-100)
+  recentSignal: boolean // Signal appeared within last 15 days
+  pumpScore: number // Total pump score (0-150)
   pumpLevel: 'low' | 'medium' | 'high' // Pump level classification
 }
 
@@ -89,14 +89,17 @@ const PUMP_DETECTION_CONFIG = {
   // P_Squeeze: Price squeeze detection
   P_SQUEEZE_PERIOD: 10, // Number of periods to check for price squeeze
   P_SQUEEZE_THRESHOLD: 6, // Price volatility < 6%
-  // Whale_Acc: Whale accumulation detection  
+  // Whale_Acc: Whale accumulation detection
   WHALE_VOLUME_SPIKE: 3, // Volume > 3x SMA20_Volume
   WHALE_PRICE_CHANGE_MAX: 10, // |Price Change| < 10%
   // V/MC Ratio spike
   VMC_RATIO_SPIKE: 0.15, // V/MC Ratio > 15% (0.15)
-  // Scoring thresholds
+  // Recent signal bonus: signal within last N days
+  RECENT_SIGNAL_DAYS: 15,
+  RECENT_SIGNAL_BONUS: 50,
+  // Scoring thresholds (max base score = 20+20+35+25 = 100, max total = 150)
   SCORE_LOW_MAX: 35,
-  SCORE_MEDIUM_MAX: 65,
+  SCORE_MEDIUM_MAX: 70,
 }
 
 export function CoinChartModal({
@@ -160,9 +163,14 @@ export function CoinChartModal({
       WHALE_VOLUME_SPIKE,
       WHALE_PRICE_CHANGE_MAX,
       VMC_RATIO_SPIKE,
+      RECENT_SIGNAL_DAYS,
+      RECENT_SIGNAL_BONUS,
       SCORE_LOW_MAX,
       SCORE_MEDIUM_MAX,
     } = PUMP_DETECTION_CONFIG
+
+    // Cutoff timestamp for "recent signal" bonus (last 15 days)
+    const recentCutoff = Date.now() - RECENT_SIGNAL_DAYS * 24 * 60 * 60 * 1000
 
     // First pass: calculate basic indicators
     const intermediateData = filteredData.map((point, index, arr) => {
@@ -205,12 +213,12 @@ export function CoinChartModal({
 
     // Second pass: calculate signals and scores
     return intermediateData.map((point, index, arr) => {
-      const { sma20Volume, priceChangePct, volumeRatio, priceVolatility } = point
+      const { sma20Volume, priceChangePct, priceVolatility } = point
 
       // Signal 1: V_Exhaust - Volume exhaustion (Volume < 30% of SMA20)
       const vExhaust = sma20Volume !== null && point.volume < V_EXHAUST_THRESHOLD * sma20Volume
 
-      // Signal 2: P_Squeeze - Price squeeze (volatility < 6%)
+      // Signal 2: P_Squeeze - Price squeeze (volatility < 6% over last P_SQUEEZE_PERIOD candles)
       const pSqueeze = priceVolatility !== null && priceVolatility < P_SQUEEZE_THRESHOLD
 
       // Signal 3: Whale_Acc - Whale accumulation (Volume > 3x SMA20 AND |Price Change| < 10%)
@@ -223,54 +231,44 @@ export function CoinChartModal({
       // Signal 4: V/MC Ratio spike (> 15%)
       const vmcRatioSpike = point.volMcRatio > VMC_RATIO_SPIKE
 
-      // Signal 5: Cooldown - Volume drops after whale accumulation
-      let cooldown = false
-      if (index > 0) {
-        const prevPoint = arr[index - 1]
-        // Check if previous point had whale accumulation and current volume is low
-        const prevWhaleAcc =
-          prevPoint.sma20Volume !== null &&
-          prevPoint.priceChangePct !== null &&
-          filteredData[index - 1].volume > WHALE_VOLUME_SPIKE * prevPoint.sma20Volume &&
-          Math.abs(prevPoint.priceChangePct) < WHALE_PRICE_CHANGE_MAX
-        cooldown = prevWhaleAcc && vExhaust
-      }
-
       // Check for sustained P_Squeeze (10+ periods)
       let sustainedPSqueeze = false
       if (index >= P_SQUEEZE_PERIOD) {
         const recentPoints = arr.slice(index - P_SQUEEZE_PERIOD, index + 1)
-        sustainedPSqueeze = recentPoints.every(p => p.priceVolatility !== null && p.priceVolatility < P_SQUEEZE_THRESHOLD)
-      }
-
-      // Check for sustained V_Exhaust
-      let sustainedVExhaust = false
-      if (index >= 3) {
-        const recentPoints = arr.slice(index - 2, index + 1)
-        sustainedVExhaust = recentPoints.every(p => 
-          p.sma20Volume !== null && filteredData[arr.indexOf(p)].volume < V_EXHAUST_THRESHOLD * p.sma20Volume
+        sustainedPSqueeze = recentPoints.every(
+          p => p.priceVolatility !== null && p.priceVolatility < P_SQUEEZE_THRESHOLD
         )
       }
 
-      // Calculate Pump Score (0-100)
+      // Check for sustained V_Exhaust (3+ consecutive candles)
+      let sustainedVExhaust = false
+      if (index >= 2) {
+        sustainedVExhaust = arr
+          .slice(index - 2, index + 1)
+          .every(p => p.sma20Volume !== null && p.volume < V_EXHAUST_THRESHOLD * p.sma20Volume)
+      }
+
+      // Calculate base Pump Score (max 100)
       let pumpScore = 0
-      
+
       // Signal 1: Sustained P_Squeeze (+20 points)
       if (sustainedPSqueeze) pumpScore += 20
-      
+
       // Signal 2: Sustained V_Exhaust (+20 points)
       if (sustainedVExhaust) pumpScore += 20
-      
-      // Signal 3: Whale_Acc (+30 points)
-      if (whaleAcc) pumpScore += 30
-      
-      // Signal 4: V/MC Ratio spike during squeeze (+15 points)
-      if (vmcRatioSpike && pSqueeze) pumpScore += 15
-      
-      // Signal 5: Cooldown after whale accumulation (+15 points)
-      if (cooldown) pumpScore += 15
 
-      // Determine pump level
+      // Signal 3: Whale_Acc (+35 points)
+      if (whaleAcc) pumpScore += 35
+
+      // Signal 4: V/MC Ratio spike (+25 points)
+      if (vmcRatioSpike) pumpScore += 25
+
+      // Bonus: +50 points if any signal appeared within the last 15 days
+      const isRecent = point.timestamp >= recentCutoff
+      const recentSignal = isRecent && pumpScore > 0
+      if (recentSignal) pumpScore += RECENT_SIGNAL_BONUS
+
+      // Determine pump level (max possible score = 150)
       let pumpLevel: 'low' | 'medium' | 'high' = 'low'
       if (pumpScore > SCORE_MEDIUM_MAX) {
         pumpLevel = 'high'
@@ -278,8 +276,8 @@ export function CoinChartModal({
         pumpLevel = 'medium'
       }
 
-      // isAnomaly = any significant signal detected
-      const isAnomaly = pumpScore > SCORE_LOW_MAX
+      // isAnomaly = any signal detected with score > 0
+      const isAnomaly = pumpScore > 0
 
       return {
         ...point,
@@ -287,7 +285,7 @@ export function CoinChartModal({
         pSqueeze,
         whaleAcc,
         vmcRatioSpike,
-        cooldown,
+        recentSignal,
         pumpScore,
         pumpLevel,
         isAnomaly,
@@ -295,29 +293,15 @@ export function CoinChartModal({
     })
   }, [filteredData])
 
-  // Extract pump signal points for scatter plot
-  const pumpSignalData = useMemo(() => {
-    return processedData
-      .filter((d) => d.isAnomaly)
-      .map((d) => ({
-        date: d.date,
-        price: d.price,
-        volume: d.volume,
-        volumeRatio: d.volumeRatio,
-        priceChangePct: d.priceChangePct,
-        pumpScore: d.pumpScore,
-        pumpLevel: d.pumpLevel,
-      }))
-  }, [processedData])
-
-  // Count pump signals by level
+  // Count pump signals by level and track recent signals
   const pumpSignalCounts = useMemo(() => {
-    const counts = { low: 0, medium: 0, high: 0, total: 0 }
+    const counts = { low: 0, medium: 0, high: 0, total: 0, recentTotal: 0 }
     processedData.forEach((d) => {
       if (d.pumpScore > 0) {
         if (d.pumpLevel === 'low') counts.low++
         else if (d.pumpLevel === 'medium') counts.medium++
         else if (d.pumpLevel === 'high') counts.high++
+        if (d.recentSignal) counts.recentTotal++
       }
     })
     counts.total = counts.low + counts.medium + counts.high
@@ -505,68 +489,59 @@ export function CoinChartModal({
 
         {/* Stats Bar */}
         {stats && !loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Change ({timeRange}D)</p>
-              <p
-                className={`text-sm font-semibold ${stats.priceChange >= 0
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-                  }`}
-              >
-                {stats.priceChange >= 0 ? '+' : ''}
-                {stats.priceChange.toFixed(2)}%
+              <p className={`text-sm font-semibold ${stats.priceChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {stats.priceChange >= 0 ? '+' : ''}{stats.priceChange.toFixed(2)}%
               </p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">High</p>
-              <p className="text-sm font-semibold text-foreground">
-                {formatPrice(stats.highPrice)}
-              </p>
+              <p className="text-sm font-semibold text-foreground">{formatPrice(stats.highPrice)}</p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Low</p>
-              <p className="text-sm font-semibold text-foreground">
-                {formatPrice(stats.lowPrice)}
-              </p>
+              <p className="text-sm font-semibold text-foreground">{formatPrice(stats.lowPrice)}</p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Avg Volume</p>
-              <p className="text-sm font-semibold text-foreground">
-                {formatVolume(stats.avgVolume)}
-              </p>
+              <p className="text-sm font-semibold text-foreground">{formatVolume(stats.avgVolume)}</p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">Avg Vol/MC</p>
-              <p className="text-sm font-semibold text-foreground">
-                {stats.avgVolMcRatio.toFixed(4)}
-              </p>
+              <p className="text-sm font-semibold text-foreground">{stats.avgVolMcRatio.toFixed(4)}</p>
             </div>
-            <div className={`rounded-lg p-3 col-span-2 sm:col-span-1 ${whaleSignalCount > 0 ? 'bg-gradient-to-r from-green-500/10 via-yellow-500/10 to-red-500/10 border border-orange-500/30' : 'bg-muted/30'}`}>
+            {/* Pump Signals stat */}
+            <div className={`rounded-lg p-3 ${whaleSignalCount > 0 ? 'bg-gradient-to-r from-green-500/10 via-yellow-500/10 to-red-500/10 border border-orange-500/30' : 'bg-muted/30'}`}>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <ActivityIcon className="h-3 w-3" />
                 Pump Signals
               </p>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {pumpSignalCounts.high > 0 && (
-                  <span className="text-sm font-semibold text-red-500">
-                    {pumpSignalCounts.high} High
-                  </span>
+                  <span className="text-sm font-semibold text-red-500">{pumpSignalCounts.high}H</span>
                 )}
                 {pumpSignalCounts.medium > 0 && (
-                  <span className="text-sm font-semibold text-yellow-500">
-                    {pumpSignalCounts.medium} Med
-                  </span>
+                  <span className="text-sm font-semibold text-yellow-500">{pumpSignalCounts.medium}M</span>
                 )}
                 {pumpSignalCounts.low > 0 && (
-                  <span className="text-sm font-semibold text-green-500">
-                    {pumpSignalCounts.low} Low
-                  </span>
+                  <span className="text-sm font-semibold text-green-500">{pumpSignalCounts.low}L</span>
                 )}
                 {whaleSignalCount === 0 && (
                   <span className="text-sm font-semibold text-foreground">None</span>
                 )}
               </div>
+            </div>
+            {/* Recent Signal stat (last 15 days) */}
+            <div className={`rounded-lg p-3 ${pumpSignalCounts.recentTotal > 0 ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-muted/30'}`}>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <ActivityIcon className="h-3 w-3" />
+                Recent (15d)
+              </p>
+              <p className={`text-sm font-semibold ${pumpSignalCounts.recentTotal > 0 ? 'text-blue-500' : 'text-foreground'}`}>
+                {pumpSignalCounts.recentTotal > 0 ? `${pumpSignalCounts.recentTotal} signal${pumpSignalCounts.recentTotal > 1 ? 's' : ''}` : 'None'}
+              </p>
             </div>
           </div>
         )}
@@ -694,7 +669,7 @@ export function CoinChartModal({
                                 {dataPoint.pSqueeze && <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">P_Squeeze</span>}
                                 {dataPoint.whaleAcc && <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded">Whale_Acc</span>}
                                 {dataPoint.vmcRatioSpike && <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">V/MC Spike</span>}
-                                {dataPoint.cooldown && <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Cooldown</span>}
+                                {dataPoint.recentSignal && <span className="px-1.5 py-0.5 bg-blue-600/20 text-blue-300 rounded">Recent +50</span>}
                               </div>
                               {dataPoint.pumpLevel !== 'low' && (
                                 <div className="flex items-center gap-2 text-sm">
