@@ -50,9 +50,11 @@ interface ProcessedDataPoint extends MarketChartDataPoint {
   vExhaust: boolean // Volume exhaustion signal
   pSqueeze: boolean // Price squeeze signal
   whaleAcc: boolean // Whale accumulation signal
-  vmcRatioSpike: boolean // V/MC ratio spike signal
+  vmcRatioSpike: number // V/MC ratio spike score (0, 15, 25, or 40)
+  vmcBaseline: number | null // SMA20 of V/MC ratio (baseline)
+  vmcMultiple: number | null // Current V/MC / Baseline
   recentSignal: boolean // Signal appeared within last 15 days
-  pumpScore: number // Total pump score (0-140)
+  pumpScore: number // Total pump score (0-165)
   pumpLevel: 'low' | 'medium' | 'high' // Pump level classification
 }
 
@@ -83,7 +85,7 @@ const CHART_COLORS = {
 
 // Pump signal detection algorithm parameters
 const PUMP_DETECTION_CONFIG = {
-  SMA_PERIOD: 20, // 20-day Simple Moving Average for volume
+  SMA_PERIOD: 20, // 20-day Simple Moving Average for volume and V/MC
   // V_Exhaust: Volume exhaustion detection
   V_EXHAUST_THRESHOLD: 0.3, // Volume < 30% of SMA20_Volume
   // P_Squeeze: Price squeeze detection
@@ -92,14 +94,22 @@ const PUMP_DETECTION_CONFIG = {
   // Whale_Acc: Whale accumulation detection
   WHALE_VOLUME_SPIKE: 3, // Volume > 3x SMA20_Volume
   WHALE_PRICE_CHANGE_MAX: 10, // |Price Change| < 10%
-  // V/MC Ratio spike
-  VMC_RATIO_SPIKE: 0.15, // V/MC Ratio > 15% (0.15)
+  // V/MC Ratio spike thresholds (based on SMA20 baseline)
+  VMC_MIN_THRESHOLD: 0.10, // Skip if V/MC < 10% (too weak)
+  VMC_TIER1_MIN: 2.5, // 2.5x baseline = +15 points (attention)
+  VMC_TIER1_MAX: 3.0,
+  VMC_TIER1_SCORE: 15,
+  VMC_TIER2_MIN: 4.0, // 4x baseline = +25 points (whale alert)
+  VMC_TIER2_MAX: 7.0,
+  VMC_TIER2_SCORE: 25,
+  VMC_TIER3_MIN: 10.0, // >10x baseline = +40 points (super spike)
+  VMC_TIER3_SCORE: 40,
   // Recent signal bonus: signal within last N days
   RECENT_SIGNAL_DAYS: 15,
   RECENT_SIGNAL_BONUS: 50,
-  // Scoring thresholds (max base score = 20+20+30+20 = 90, max total = 140)
+  // Scoring thresholds (max base score = 20+20+35+40 = 115, max total = 165)
   SCORE_LOW_MAX: 70,
-  SCORE_MEDIUM_MAX: 100,
+  SCORE_MEDIUM_MAX: 110,
 }
 
 export function CoinChartModal({
@@ -162,7 +172,15 @@ export function CoinChartModal({
       P_SQUEEZE_THRESHOLD,
       WHALE_VOLUME_SPIKE,
       WHALE_PRICE_CHANGE_MAX,
-      VMC_RATIO_SPIKE,
+      VMC_MIN_THRESHOLD,
+      VMC_TIER1_MIN,
+      VMC_TIER1_MAX,
+      VMC_TIER1_SCORE,
+      VMC_TIER2_MIN,
+      VMC_TIER2_MAX,
+      VMC_TIER2_SCORE,
+      VMC_TIER3_MIN,
+      VMC_TIER3_SCORE,
       RECENT_SIGNAL_DAYS,
       RECENT_SIGNAL_BONUS,
       SCORE_LOW_MAX,
@@ -172,7 +190,7 @@ export function CoinChartModal({
     // Cutoff timestamp for "recent signal" bonus (last 15 days)
     const recentCutoff = Date.now() - RECENT_SIGNAL_DAYS * 24 * 60 * 60 * 1000
 
-    // First pass: calculate basic indicators
+    // First pass: calculate basic indicators including SMA20 of V/MC
     const intermediateData = filteredData.map((point, index, arr) => {
       // Calculate SMA_20_Volume
       let sma20Volume: number | null = null
@@ -181,6 +199,15 @@ export function CoinChartModal({
           .slice(index - SMA_PERIOD + 1, index + 1)
           .reduce((sum, p) => sum + p.volume, 0)
         sma20Volume = volumeSum / SMA_PERIOD
+      }
+
+      // Calculate SMA_20 of V/MC Ratio (Baseline)
+      let vmcBaseline: number | null = null
+      if (index >= SMA_PERIOD - 1) {
+        const vmcSum = arr
+          .slice(index - SMA_PERIOD + 1, index + 1)
+          .reduce((sum, p) => sum + p.volMcRatio, 0)
+        vmcBaseline = vmcSum / SMA_PERIOD
       }
 
       // Calculate Price Change Percentage (compared to previous day)
@@ -192,6 +219,9 @@ export function CoinChartModal({
 
       // Calculate volume ratio
       const volumeRatio = sma20Volume ? point.volume / sma20Volume : null
+
+      // Calculate V/MC multiple (current / baseline)
+      const vmcMultiple = vmcBaseline && vmcBaseline > 0 ? point.volMcRatio / vmcBaseline : null
 
       // Calculate price range for P_Squeeze (volatility over P_SQUEEZE_PERIOD)
       let priceVolatility: number | null = null
@@ -205,6 +235,8 @@ export function CoinChartModal({
       return {
         ...point,
         sma20Volume,
+        vmcBaseline,
+        vmcMultiple,
         priceChangePct,
         volumeRatio,
         priceVolatility,
@@ -213,7 +245,7 @@ export function CoinChartModal({
 
     // Second pass: calculate signals and scores
     return intermediateData.map((point, index, arr) => {
-      const { sma20Volume, priceChangePct, priceVolatility } = point
+      const { sma20Volume, priceChangePct, priceVolatility, vmcBaseline, vmcMultiple } = point
 
       // Signal 1: V_Exhaust - Volume exhaustion (Volume < 30% of SMA20)
       const vExhaust = sma20Volume !== null && point.volume < V_EXHAUST_THRESHOLD * sma20Volume
@@ -228,8 +260,21 @@ export function CoinChartModal({
         point.volume > WHALE_VOLUME_SPIKE * sma20Volume &&
         Math.abs(priceChangePct) < WHALE_PRICE_CHANGE_MAX
 
-      // Signal 4: V/MC Ratio spike (> 15%)
-      const vmcRatioSpike = point.volMcRatio > VMC_RATIO_SPIKE
+      // Signal 4: V/MC Ratio spike (tiered scoring based on baseline multiple)
+      // Skip if current V/MC < 10% (too weak)
+      let vmcRatioSpike = 0
+      if (point.volMcRatio >= VMC_MIN_THRESHOLD && vmcMultiple !== null) {
+        if (vmcMultiple >= VMC_TIER3_MIN) {
+          // Super spike: >10x baseline = +40 points
+          vmcRatioSpike = VMC_TIER3_SCORE
+        } else if (vmcMultiple >= VMC_TIER2_MIN && vmcMultiple <= VMC_TIER2_MAX) {
+          // Whale alert: 4x-7x baseline = +25 points
+          vmcRatioSpike = VMC_TIER2_SCORE
+        } else if (vmcMultiple >= VMC_TIER1_MIN && vmcMultiple <= VMC_TIER1_MAX) {
+          // Attention: 2.5x-3x baseline = +15 points
+          vmcRatioSpike = VMC_TIER1_SCORE
+        }
+      }
 
       // Check for sustained P_Squeeze (10+ periods)
       let sustainedPSqueeze = false
@@ -248,7 +293,7 @@ export function CoinChartModal({
           .every(p => p.sma20Volume !== null && p.volume < V_EXHAUST_THRESHOLD * p.sma20Volume)
       }
 
-      // Calculate base Pump Score (max 140)
+      // Calculate base Pump Score (max 165)
       let pumpScore = 0
 
       // Signal 1: Sustained P_Squeeze (+20 points)
@@ -257,18 +302,18 @@ export function CoinChartModal({
       // Signal 2: Sustained V_Exhaust (+20 points)
       if (sustainedVExhaust) pumpScore += 20
 
-      // Signal 3: Whale_Acc (+30 points)
-      if (whaleAcc) pumpScore += 30
+      // Signal 3: Whale_Acc (+35 points)
+      if (whaleAcc) pumpScore += 35
 
-      // Signal 4: V/MC Ratio spike (+20 points)
-      if (vmcRatioSpike) pumpScore += 20
+      // Signal 4: V/MC Ratio spike (tiered: +15, +25, or +40 points)
+      pumpScore += vmcRatioSpike
 
       // Bonus: +50 points if any signal appeared within the last 15 days
       const isRecent = point.timestamp >= recentCutoff
       const recentSignal = isRecent && pumpScore > 0
       if (recentSignal) pumpScore += RECENT_SIGNAL_BONUS
 
-      // Determine pump level (max possible score = 140)
+      // Determine pump level (max possible score = 165)
       let pumpLevel: 'low' | 'medium' | 'high' = 'low'
       if (pumpScore > SCORE_MEDIUM_MAX) {
         pumpLevel = 'high'
@@ -285,6 +330,8 @@ export function CoinChartModal({
         pSqueeze,
         whaleAcc,
         vmcRatioSpike,
+        vmcBaseline,
+        vmcMultiple,
         recentSignal,
         pumpScore,
         pumpLevel,
