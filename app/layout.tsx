@@ -7,9 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'CryptoTracker - Real-Time Cryptocurrency Prices',
-  description: 'Track cryptocurrency prices, market cap, and key metrics in real-time with CryptoTracker',
-  generator: 'v0.app',
+  title: 'CryptoTracker',
+  description: 'Track cryptocurrency with CryptoTracker',
   icons: {
     icon: [
       {
