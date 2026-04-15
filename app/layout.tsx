@@ -8,7 +8,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: 'CryptoTracker',
-  description: 'Track cryptocurrency insight with CryptoTracker',
+  description: 'Track cryptocurrency with CryptoTracker',
   icons: {
     icon: [
       {
