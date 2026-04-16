@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, StarIcon } from 'lucide-react'
 import { CoinChartModal } from '@/components/coin-chart-modal'
+import { BatchAnalysisModal } from '@/components/batch-analysis'
+import { BatchReportModal } from '@/components/batch-analysis/batch-report-modal'
 import { TrackerHeader } from './tracker-header'
 import { TabBar } from './tab-bar'
 import { FilterPanel } from './filter-panel'
@@ -15,7 +17,6 @@ export function CoinTracker() {
     activeTab,
     setActiveTab,
     favorites,
-    favCoins,
     favLoading,
     favError,
     isDarkMode,
@@ -35,13 +36,22 @@ export function CoinTracker() {
     totalPages,
     startIndex,
     endIndex,
-    filteredAndSortedCoins,
     paginatedCoins,
     handleManualRefresh,
     handleApiKeyChange,
     handleCoinClick,
     toggleFavorite,
-    isFavorited
+    isFavorited,
+    // Batch analysis
+    isBatchModalOpen,
+    setIsBatchModalOpen,
+    isReportModalOpen,
+    setIsReportModalOpen,
+    activeReport,
+    filterDescription,
+    openCoinFromReport,
+    handleOpenReport,
+    filteredAndSortedCoins: allFilteredCoins,
   } = useCoinTracker()
 
   return (
@@ -55,10 +65,13 @@ export function CoinTracker() {
             isDarkMode={isDarkMode}
             isRefreshing={isRefreshing}
             hasActiveFilters={hasActiveFilters}
+            filteredCoinCount={allFilteredCoins.length}
             toggleDarkMode={toggleDarkMode}
             handleManualRefresh={handleManualRefresh}
             handleApiKeyChange={handleApiKeyChange}
             update={update}
+            onBatchAnalyze={() => setIsBatchModalOpen(true)}
+            onOpenReport={handleOpenReport}
           />
         </div>
 
@@ -112,17 +125,60 @@ export function CoinTracker() {
                   <p className="text-sm text-muted-foreground">Click the star icon next to any coin to add it here.</p>
                 </div>
               </div>
+            ) : paginatedCoins.length === 0 ? (
+              <div className="flex h-96 items-center justify-center">
+                <div className="text-center">
+                  <p className="text-lg font-medium text-foreground">No coins found</p>
+                  <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+                </div>
+              </div>
             ) : (
-              <CoinTable 
-                coins={favCoins}
-                startIndex={0}
-                sortField={null}
-                sortDirection={null}
-                handleSort={() => {}}
-                onCoinClick={handleCoinClick}
-                isFavorited={isFavorited}
-                toggleFavorite={toggleFavorite}
-              />
+              <div className="space-y-4">
+                <CoinTable
+                  coins={paginatedCoins}
+                  startIndex={startIndex}
+                  sortField={s.sortField}
+                  sortDirection={s.sortDirection}
+                  handleSort={handleSort}
+                  onCoinClick={handleCoinClick}
+                  isFavorited={isFavorited}
+                  toggleFavorite={toggleFavorite}
+                />
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
+                  <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                    Showing {startIndex + 1} to {Math.min(endIndex, allFilteredCoins.length)} of{' '}
+                    {allFilteredCoins.length} favorites
+                  </p>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => update(activeTab, { currentPage: Math.max(1, s.currentPage - 1) })}
+                      disabled={s.currentPage === 1}
+                      className="gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                    >
+                      <ChevronLeftIcon className="h-4 w-4" />
+                      <span className="hidden sm:inline">Previous</span>
+                    </Button>
+                    <div className="flex items-center gap-1 px-2">
+                      <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+                        {s.currentPage} / {totalPages || 1}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => update(activeTab, { currentPage: Math.min(totalPages, s.currentPage + 1) })}
+                      disabled={s.currentPage >= totalPages}
+                      className="gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRightIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         ) : (
@@ -143,7 +199,7 @@ export function CoinTracker() {
                   </p>
                 </div>
               </div>
-            ) : filteredAndSortedCoins.length === 0 ? (
+            ) : allFilteredCoins.length === 0 ? (
               <div className="flex h-96 items-center justify-center">
                 <div className="text-center">
                   <p className="text-lg font-medium text-foreground">No coins found</p>
@@ -167,8 +223,8 @@ export function CoinTracker() {
                 {/* Pagination */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
                   <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                    Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedCoins.length)} of{' '}
-                    {filteredAndSortedCoins.length} coins
+                    Showing {startIndex + 1} to {Math.min(endIndex, allFilteredCoins.length)} of{' '}
+                    {allFilteredCoins.length} coins
                   </p>
                   <div className="flex items-center gap-1 sm:gap-2">
                     <Button
@@ -232,6 +288,23 @@ export function CoinTracker() {
           currentPrice={selectedCoin.current_price}
         />
       )}
+
+      {/* Batch Analysis Modal */}
+      <BatchAnalysisModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        coins={allFilteredCoins}
+        onOpenReport={handleOpenReport}
+        filterDescription={filterDescription}
+      />
+
+      {/* Batch Report Modal */}
+      <BatchReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        report={activeReport}
+        onCoinClick={openCoinFromReport}
+      />
     </div>
   )
 }

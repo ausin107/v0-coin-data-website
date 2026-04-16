@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { fetchCoinsFromAPI, fetchAlphaCoinsFromAPI, fetchFavoriteCoins, type CoinData, type FavoriteCoin } from '@/lib/services/coin-service'
 import { TabId, TabState, SortField, Coin } from './types'
 import { loadFavoritesFromStorage, saveFavoritesToStorage, defaultTabState, isStablecoin, removeDuplicateCoins, parseValueWithSuffix, ROWS_PER_PAGE } from './utils'
+import type { BatchReport } from '@/components/batch-analysis/types'
 
 export function useCoinTracker() {
   const [activeTab, setActiveTab] = useState<TabId>('all')
   const [allState, setAllState] = useState<TabState>(defaultTabState())
   const [alphaState, setAlphaState] = useState<TabState>(defaultTabState())
+  const [favState, setFavState] = useState<TabState>({ ...defaultTabState(), loading: false })
 
   // Favorites
   const [favorites, setFavorites] = useState<FavoriteCoin[]>([])
@@ -22,15 +24,26 @@ export function useCoinTracker() {
   const [nextUpdateIn, setNextUpdateIn] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // Batch Analysis
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [activeReport, setActiveReport] = useState<BatchReport | null>(null)
+
   // Cache: track if each tab has been fetched at least once
   const hasFetchedAll = useRef(false)
   const hasFetchedAlpha = useRef(false)
   
   const AUTO_REFRESH_INTERVAL = 60 * 60 * 1000 // 1 hour in milliseconds
 
-  const getState = useCallback((tab: TabId) => (tab === 'alpha' ? alphaState : allState), [alphaState, allState])
+  const getState = useCallback((tab: TabId) => {
+    if (tab === 'alpha') return alphaState
+    if (tab === 'favorites') return favState
+    return allState
+  }, [alphaState, allState, favState])
+
   const setState = useCallback((tab: TabId, updater: (prev: TabState) => TabState) => {
     if (tab === 'alpha') setAlphaState(updater)
+    else if (tab === 'favorites') setFavState(updater)
     else setAllState(updater)
   }, [])
 
@@ -228,37 +241,38 @@ export function useCoinTracker() {
     s.min30d || s.max30d || s.min200d || s.max200d || !s.hideStablecoins
   )
 
-  const filteredAndSortedCoins = useMemo(() => {
-    let result = removeDuplicateCoins(s.coins)
-    if (s.hideStablecoins) result = result.filter((c) => !isStablecoin(c))
+  // Shared filter+sort pipeline — works for any source array + TabState
+  const applyFilterAndSort = useCallback((sourceCoins: CoinData[], state: TabState): CoinData[] => {
+    let result = removeDuplicateCoins(sourceCoins)
+    if (state.hideStablecoins) result = result.filter((c) => !isStablecoin(c))
     result = result.filter(
       (c) =>
-        c.name.toLowerCase().includes(s.searchTerm.toLowerCase()) ||
-        c.symbol.toLowerCase().includes(s.searchTerm.toLowerCase())
+        c.name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+        c.symbol.toLowerCase().includes(state.searchTerm.toLowerCase())
     )
 
-    const minMC = parseValueWithSuffix(s.minMarketCap)
-    const maxMC = parseValueWithSuffix(s.maxMarketCap)
+    const minMC = parseValueWithSuffix(state.minMarketCap)
+    const maxMC = parseValueWithSuffix(state.maxMarketCap)
     if (minMC !== null) result = result.filter((c) => (c.market_cap ?? 0) >= minMC)
     if (maxMC !== null) result = result.filter((c) => (c.market_cap ?? 0) <= maxMC)
 
-    const minVol = parseValueWithSuffix(s.minVolume)
-    const maxVol = parseValueWithSuffix(s.maxVolume)
+    const minVol = parseValueWithSuffix(state.minVolume)
+    const maxVol = parseValueWithSuffix(state.maxVolume)
     if (minVol !== null) result = result.filter((c) => (c.total_volume ?? 0) >= minVol)
     if (maxVol !== null) result = result.filter((c) => (c.total_volume ?? 0) <= maxVol)
 
-    const minRatio = s.minVolMcRatio ? parseFloat(s.minVolMcRatio) : null
-    const maxRatio = s.maxVolMcRatio ? parseFloat(s.maxVolMcRatio) : null
+    const minRatio = state.minVolMcRatio ? parseFloat(state.minVolMcRatio) : null
+    const maxRatio = state.maxVolMcRatio ? parseFloat(state.maxVolMcRatio) : null
     if (minRatio !== null && !isNaN(minRatio)) result = result.filter((c) => (c.volume_to_mc_ratio ?? 0) >= minRatio)
     if (maxRatio !== null && !isNaN(maxRatio)) result = result.filter((c) => (c.volume_to_mc_ratio ?? 0) <= maxRatio)
 
     const p = (v: string) => (v ? parseFloat(v) : null)
     const checks: [string, string, keyof CoinData][] = [
-      [s.min24h, s.max24h, 'price_change_percentage_24h'],
-      [s.min7d, s.max7d, 'price_change_percentage_7d_in_currency'],
-      [s.min14d, s.max14d, 'price_change_percentage_14d_in_currency'],
-      [s.min30d, s.max30d, 'price_change_percentage_30d_in_currency'],
-      [s.min200d, s.max200d, 'price_change_percentage_200d_in_currency'],
+      [state.min24h, state.max24h, 'price_change_percentage_24h'],
+      [state.min7d, state.max7d, 'price_change_percentage_7d_in_currency'],
+      [state.min14d, state.max14d, 'price_change_percentage_14d_in_currency'],
+      [state.min30d, state.max30d, 'price_change_percentage_30d_in_currency'],
+      [state.min200d, state.max200d, 'price_change_percentage_200d_in_currency'],
     ]
     for (const [min, max, field] of checks) {
       const minV = p(min); const maxV = p(max)
@@ -266,16 +280,32 @@ export function useCoinTracker() {
       if (maxV !== null && !isNaN(maxV)) result = result.filter((c) => ((c[field] as number) ?? Infinity) <= maxV)
     }
 
-    if (s.sortField && s.sortDirection) {
+    if (state.sortField && state.sortDirection) {
       result = [...result].sort((a, b) => {
-        const aV = (a[s.sortField!] as number) ?? 0
-        const bV = (b[s.sortField!] as number) ?? 0
-        return s.sortDirection === 'asc' ? aV - bV : bV - aV
+        const aV = (a[state.sortField!] as number) ?? 0
+        const bV = (b[state.sortField!] as number) ?? 0
+        return state.sortDirection === 'asc' ? aV - bV : bV - aV
       })
     }
 
     return result
-  }, [s])
+  }, [])
+
+  // For non-favorites tabs: filter s.coins
+  const filteredAndSortedCoins = useMemo(
+    () => applyFilterAndSort(s.coins, s),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s]
+  )
+
+  // For favorites tab: filter favCoins through favState pipeline
+  const favFilteredAndSortedCoins = useMemo(
+    () => applyFilterAndSort(favCoins, favState),
+    [favCoins, favState, applyFilterAndSort]
+  )
+
+  // The coins to actually display (unified for all tabs)
+  const displayedFilteredCoins = activeTab === 'favorites' ? favFilteredAndSortedCoins : filteredAndSortedCoins
 
   // Reset to page 1 when filters/search change
   useEffect(() => {
@@ -290,10 +320,41 @@ export function useCoinTracker() {
     s.min200d, s.max200d,
   ])
 
-  const totalPages = Math.ceil(filteredAndSortedCoins.length / ROWS_PER_PAGE)
+  const totalPages = Math.ceil(displayedFilteredCoins.length / ROWS_PER_PAGE)
   const startIndex = (s.currentPage - 1) * ROWS_PER_PAGE
   const endIndex = startIndex + ROWS_PER_PAGE
-  const paginatedCoins = filteredAndSortedCoins.slice(startIndex, endIndex)
+  const paginatedCoins = displayedFilteredCoins.slice(startIndex, endIndex)
+
+  // Generate a human-readable filter description
+  const filterDescription = useMemo(() => {
+    const parts: string[] = []
+    if (s.minMarketCap || s.maxMarketCap) parts.push(`MCap: ${s.minMarketCap || '*'}-${s.maxMarketCap || '*'}`)
+    if (s.minVolume || s.maxVolume) parts.push(`Vol: ${s.minVolume || '*'}-${s.maxVolume || '*'}`)
+    if (s.minVolMcRatio || s.maxVolMcRatio) parts.push(`V/MC: ${s.minVolMcRatio || '*'}-${s.maxVolMcRatio || '*'}`)
+    if (s.min24h || s.max24h) parts.push(`24h: ${s.min24h || '*'}-${s.max24h || '*'}%`)
+    if (s.min7d || s.max7d) parts.push(`7d: ${s.min7d || '*'}-${s.max7d || '*'}%`)
+    if (s.searchTerm) parts.push(`Search: "${s.searchTerm}"`)
+    const desc = parts.length > 0 ? parts.join(' · ') : 'No filters'
+    return `${displayedFilteredCoins.length} coins (${activeTab}) — ${desc}`
+  }, [s, displayedFilteredCoins.length, activeTab])
+
+  // Open coin chart from batch report
+  const openCoinFromReport = useCallback((coinId: string, coinName: string, coinSymbol: string, coinImage: string, currentPrice: number) => {
+    setSelectedCoin({
+      id: coinId,
+      name: coinName,
+      symbol: coinSymbol,
+      image: coinImage,
+      current_price: currentPrice,
+    } as Coin)
+    setIsChartModalOpen(true)
+  }, [])
+
+  // Open a batch report
+  const handleOpenReport = useCallback((report: BatchReport) => {
+    setActiveReport(report)
+    setIsReportModalOpen(true)
+  }, [])
 
   return {
     activeTab,
@@ -319,12 +380,22 @@ export function useCoinTracker() {
     totalPages,
     startIndex,
     endIndex,
-    filteredAndSortedCoins,
+    filteredAndSortedCoins: displayedFilteredCoins,
     paginatedCoins,
     handleManualRefresh,
     handleApiKeyChange,
     handleCoinClick,
     toggleFavorite,
-    isFavorited
+    isFavorited,
+    // Batch analysis
+    isBatchModalOpen,
+    setIsBatchModalOpen,
+    isReportModalOpen,
+    setIsReportModalOpen,
+    activeReport,
+    setActiveReport,
+    filterDescription,
+    openCoinFromReport,
+    handleOpenReport,
   }
 }

@@ -32,6 +32,7 @@ export async function fetchFavoriteCoins(ids: string[]): Promise<CoinData[]> {
     price_change_percentage_14d_in_currency: c.price_change_percentage_14d_in_currency,
     price_change_percentage_30d_in_currency: c.price_change_percentage_30d_in_currency,
     price_change_percentage_200d_in_currency: c.price_change_percentage_200d_in_currency,
+    price_change_percentage_1y_in_currency: c.price_change_percentage_1y_in_currency,
     high_24h: c.high_24h,
     low_24h: c.low_24h,
     market_cap_change_percentage_24h: c.market_cap_change_percentage_24h,
@@ -55,8 +56,10 @@ export interface CoinData {
   market_cap_rank: number
   price_change_percentage_24h: number
   price_change_percentage_7d_in_currency: number
+  price_change_percentage_14d_in_currency: number
   price_change_percentage_30d_in_currency: number
   price_change_percentage_200d_in_currency: number
+  price_change_percentage_1y_in_currency: number
   high_24h: number
   low_24h: number
   market_cap_change_percentage_24h: number
