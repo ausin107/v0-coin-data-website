@@ -6,6 +6,8 @@ import { ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, StarIcon } from 'luci
 import { CoinChartModal } from '@/components/coin-chart-modal'
 import { BatchAnalysisModal } from '@/components/batch-analysis'
 import { BatchReportModal } from '@/components/batch-analysis/batch-report-modal'
+import { BatchScanModal } from '@/components/batch-scan'
+import { BatchScanReportModal } from '@/components/batch-scan/batch-scan-report-modal'
 import { TrackerHeader } from './tracker-header'
 import { TabBar } from './tab-bar'
 import { FilterPanel } from './filter-panel'
@@ -52,6 +54,13 @@ export function CoinTracker() {
     openCoinFromReport,
     handleOpenReport,
     filteredAndSortedCoins: allFilteredCoins,
+    // Batch scan
+    isBatchScanModalOpen,
+    setIsBatchScanModalOpen,
+    isScanReportModalOpen,
+    setIsScanReportModalOpen,
+    activeScanReport,
+    handleOpenScanReport,
   } = useCoinTracker()
 
   return (
@@ -72,6 +81,8 @@ export function CoinTracker() {
             update={update}
             onBatchAnalyze={() => setIsBatchModalOpen(true)}
             onOpenReport={handleOpenReport}
+            onBatchScan={() => setIsBatchScanModalOpen(true)}
+            onOpenScanReport={handleOpenScanReport}
           />
         </div>
 
@@ -303,6 +314,23 @@ export function CoinTracker() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         report={activeReport}
+        onCoinClick={openCoinFromReport}
+      />
+
+      {/* Batch Scan Modal */}
+      <BatchScanModal
+        isOpen={isBatchScanModalOpen}
+        onClose={() => setIsBatchScanModalOpen(false)}
+        coins={allFilteredCoins}
+        onOpenReport={handleOpenScanReport}
+        filterDescription={filterDescription}
+      />
+
+      {/* Batch Scan Report Modal */}
+      <BatchScanReportModal
+        isOpen={isScanReportModalOpen}
+        onClose={() => setIsScanReportModalOpen(false)}
+        report={activeScanReport}
         onCoinClick={openCoinFromReport}
       />
     </div>

@@ -172,10 +172,10 @@ export function PriceVolumeChart({ data, showWhaleSignals }: { data: ProcessedDa
               data={data}
               fill={CHART_COLORS.pumpTier3}
               name="Pump Signal"
-              shape={(props: { cx?: number; cy?: number; payload?: ProcessedDataPoint }) => {
-                const { cx, cy, payload } = props
+              shape={(props: any) => {
+                const { cx, cy, payload } = props as { cx?: number; cy?: number; payload?: ProcessedDataPoint }
                 // Only render marker for tier2, tier3, or tier4 pump levels
-                if (cx === undefined || cy === undefined || !payload || payload.pumpLevel === 'tier1') return null
+                if (cx === undefined || cy === undefined || !payload || payload.pumpLevel === 'tier1') return <g />
 
                 // Get color based on pump tier level
                 const color = payload.pumpLevel === 'tier4'

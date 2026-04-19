@@ -30,3 +30,19 @@ export const setApiKey = (key: string): void => {
 export const clearApiKey = (): void => {
   localStorage.removeItem('COINGECKO_API_KEY')
 }
+
+// Moralis API Key management
+export const getMoralisApiKey = (): string => {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return localStorage.getItem('MORALIS_API_KEY') || ''
+}
+
+export const setMoralisApiKey = (key: string): void => {
+  localStorage.setItem('MORALIS_API_KEY', key)
+}
+
+export const clearMoralisApiKey = (): void => {
+  localStorage.removeItem('MORALIS_API_KEY')
+}

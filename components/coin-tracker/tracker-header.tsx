@@ -1,9 +1,11 @@
 import { Input } from '@/components/ui/input'
-import { TrendingUpIcon, FilterIcon, MoonIcon, SunIcon, RefreshCwIcon, SearchIcon, ZapIcon } from 'lucide-react'
+import { TrendingUpIcon, FilterIcon, MoonIcon, SunIcon, RefreshCwIcon, SearchIcon, ZapIcon, ScanSearchIcon } from 'lucide-react'
 import { ApiSettings } from '@/components/api-settings'
 import { BatchReportHistory } from '@/components/batch-analysis/batch-report-history'
+import { BatchScanReportHistory } from '@/components/batch-scan/batch-scan-report-history'
 import { TabId, TabState } from './types'
 import type { BatchReport } from '@/components/batch-analysis/types'
+import type { BatchScanReport } from '@/components/batch-scan/types'
 
 interface TrackerHeaderProps {
   s: TabState
@@ -18,6 +20,8 @@ interface TrackerHeaderProps {
   update: (tab: TabId, patch: Partial<TabState>) => void
   onBatchAnalyze: () => void
   onOpenReport: (report: BatchReport) => void
+  onBatchScan: () => void
+  onOpenScanReport: (report: BatchScanReport) => void
 }
 
 export function TrackerHeader({
@@ -33,6 +37,8 @@ export function TrackerHeader({
   update,
   onBatchAnalyze,
   onOpenReport,
+  onBatchScan,
+  onOpenScanReport,
 }: TrackerHeaderProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -46,6 +52,16 @@ export function TrackerHeader({
         </div>
         {/* Mobile action buttons */}
         <div className="flex items-center gap-1 sm:hidden">
+          <button
+            onClick={onBatchScan}
+            disabled={filteredCoinCount === 0 || s.loading}
+            className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors bg-secondary/10 text-secondary-foreground hover:bg-secondary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={`Scan ${filteredCoinCount} coins`}
+          >
+            <ScanSearchIcon className="h-4 w-4" />
+          </button>
+          <BatchScanReportHistory onOpenReport={onOpenScanReport} />
+          
           <button
             onClick={onBatchAnalyze}
             disabled={filteredCoinCount === 0 || s.loading}
@@ -95,6 +111,18 @@ export function TrackerHeader({
           />
         </div>
         <div className="hidden sm:flex items-center gap-1">
+          {/* Batch Scan Button */}
+          <button
+            onClick={onBatchScan}
+            disabled={filteredCoinCount === 0 || s.loading}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all bg-secondary/10 text-secondary-foreground hover:bg-secondary/20 disabled:opacity-50 disabled:cursor-not-allowed border border-secondary/20 hover:border-secondary/40"
+            title={`Batch scan ${filteredCoinCount} filtered coins`}
+          >
+            <ScanSearchIcon className="h-4 w-4" />
+            Scan
+          </button>
+          <BatchScanReportHistory onOpenReport={onOpenScanReport} />
+
           {/* Batch Analyze Button */}
           <button
             onClick={onBatchAnalyze}

@@ -3,6 +3,7 @@ import { fetchCoinsFromAPI, fetchAlphaCoinsFromAPI, fetchFavoriteCoins, type Coi
 import { TabId, TabState, SortField, Coin } from './types'
 import { loadFavoritesFromStorage, saveFavoritesToStorage, defaultTabState, isStablecoin, removeDuplicateCoins, parseValueWithSuffix, ROWS_PER_PAGE } from './utils'
 import type { BatchReport } from '@/components/batch-analysis/types'
+import type { BatchScanReport } from '@/components/batch-scan/types'
 
 export function useCoinTracker() {
   const [activeTab, setActiveTab] = useState<TabId>('all')
@@ -28,6 +29,11 @@ export function useCoinTracker() {
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [activeReport, setActiveReport] = useState<BatchReport | null>(null)
+
+  // Batch Scan
+  const [isBatchScanModalOpen, setIsBatchScanModalOpen] = useState(false)
+  const [isScanReportModalOpen, setIsScanReportModalOpen] = useState(false)
+  const [activeScanReport, setActiveScanReport] = useState<BatchScanReport | null>(null)
 
   // Cache: track if each tab has been fetched at least once
   const hasFetchedAll = useRef(false)
@@ -356,6 +362,12 @@ export function useCoinTracker() {
     setIsReportModalOpen(true)
   }, [])
 
+  // Open a batch scan report
+  const handleOpenScanReport = useCallback((report: BatchScanReport) => {
+    setActiveScanReport(report)
+    setIsScanReportModalOpen(true)
+  }, [])
+
   return {
     activeTab,
     setActiveTab,
@@ -397,5 +409,13 @@ export function useCoinTracker() {
     filterDescription,
     openCoinFromReport,
     handleOpenReport,
+    // Batch scan
+    isBatchScanModalOpen,
+    setIsBatchScanModalOpen,
+    isScanReportModalOpen,
+    setIsScanReportModalOpen,
+    activeScanReport,
+    setActiveScanReport,
+    handleOpenScanReport,
   }
 }
